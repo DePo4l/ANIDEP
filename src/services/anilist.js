@@ -11,7 +11,7 @@ async function query(document, variables = {}) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ query: document, variables })
   });
-  if (!response.ok) throw new Error(response.status === 429 ? 'AniList sedang membatasi permintaan. Coba lagi sebentar.' : 'AniList tidak tersedia.');
+  if (!response.ok) throw new Error(response.status === 429 ? 'AniList sedang membatasi permintaan. Coba lagi sebentar.' : response.status === 404 ? 'Anime tidak ditemukan di AniList.' : 'AniList tidak tersedia.');
   const result = await response.json();
   if (result.errors?.length) throw new Error(result.errors[0].message || 'Data AniList gagal dimuat.');
   cache.set(key, { value: result.data, expires: Date.now() + 5 * 60_000 });
@@ -20,6 +20,19 @@ async function query(document, variables = {}) {
 
 export function titleOf(anime) { return anime?.title?.english || anime?.title?.romaji || 'Tanpa judul'; }
 export function synopsisOf(anime) { return (anime?.description || '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&#039;/g, "'"); }
+export function episodeCountOf(anime) {
+  if (anime?.format === 'MOVIE' || anime?.status === 'NOT_YET_RELEASED') return 0;
+  const total = Number(anime?.episodes);
+  const next = Number(anime?.nextAiringEpisode?.episode);
+  const aired = anime?.status === 'RELEASING' && Number.isSafeInteger(next) && next > 1 ? next - 1 : 0;
+  if (!Number.isSafeInteger(total) || total < 1) return aired;
+  return aired ? Math.min(total, aired) : total;
+}
+export function episodeNumbers(count, available = []) {
+  const numbers = new Set(available.map(item => Number(item.number)).filter(number => Number.isSafeInteger(number) && number > 0));
+  for (let number = 1; number <= count; number++) numbers.add(number);
+  return [...numbers].sort((a, b) => a - b);
+}
 
 export async function listAnime({ kind = 'trending', search = '', page = 1 } = {}) {
   const now = new Date();
@@ -32,7 +45,7 @@ export async function listAnime({ kind = 'trending', search = '', page = 1 } = {
 }
 
 export async function getAnime(id) {
-  const data = await query(`query ($id: Int) { Media(id: $id, type: ANIME) { ${cardFields} description(asHtml: false) bannerImage genres duration studios(isMain: true) { nodes { name } } nextAiringEpisode { episode airingAt } } }`, { id: Number(id) });
+  const data = await query(`query ($id: Int) { Media(id: $id, type: ANIME) { ${cardFields} description(asHtml: false) bannerImage genres duration externalLinks { site url type } nextAiringEpisode { episode airingAt } } }`, { id: Number(id) });
   return data.Media;
 }
 

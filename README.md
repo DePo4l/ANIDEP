@@ -1,6 +1,6 @@
 # ANIDEP
 
-ANIDEP adalah aplikasi anime lokal dengan katalog AniList, pemutar MP4/HLS, dan riwayat menonton di browser. Katalog anime tidak menyediakan video. Tambahkan URL video yang kamu miliki atau boleh gunakan untuk setiap episode.
+ANIDEP adalah aplikasi anime lokal dengan katalog AniList, halaman tonton, pemutar MP4/HLS pribadi, dan riwayat di browser. Katalog AniList tidak menyediakan video.
 
 ## Menjalankan
 
@@ -20,12 +20,20 @@ npm run build
 npm run preview
 ```
 
-## Menggunakan video
+## VidNest dan izin konten
+
+[Dokumentasi VidNest](https://vidnest.fun/) menawarkan iframe anime dengan format `https://vidnest.fun/anime/[ANILIST_ID]/[EPISODE]/[SUB_OR_DUB]`. URL contoh merespons HTTP 200 dan tidak mengirim header `X-Frame-Options` saat diperiksa. Itu hanya membuktikan halaman tersedia dan format embed didokumentasikan; **ketersediaan episode, keberhasilan pemutaran, dan lisensi kontennya belum terverifikasi**. Karena situs menyatakan konten dikumpulkan dari beberapa sumber tanpa penjelasan hak atas episode, adaptor ANIDEP dinonaktifkan secara default.
+
+Jika kamu telah memastikan hak untuk meng-embed dan memutar konten yang dipilih, ubah `VITE_VIDNEST_EMBED_AUTHORIZED=true` dan isi `VITE_VIDNEST_ALLOWED_ANILIST_IDS` dengan ID judul yang diizinkan (misalnya `123,456`) di `.env`, lalu jalankan ulang `npm run dev`. Saat aktif untuk ID tersebut, halaman tonton menggunakan iframe VidNest untuk anime episodik dengan nomor episode yang tersedia pada metadata AniList. Sub/Dub mengubah URL embed. Ini tidak menjamin dua versi bahasa tersedia. Tidak ada proxy atau ekstraksi URL video.
+
+Film tidak memakai URL `/anime/.../1/...`: dokumentasi VidNest menggunakan TMDB ID untuk film, sedangkan ANIDEP memakai AniList ID. Halaman film menampilkan tautan streaming resmi dari AniList bila tersedia dan tetap mendukung video pribadi.
+
+## Menggunakan video pribadi
 
 1. Cari anime atau jelajahi katalog, lalu buka halaman detail.
-2. Isi nomor episode dan URL langsung ke file `.mp4` atau playlist `.m3u8` yang diizinkan. Subtitle `.vtt` opsional.
-3. Buka halaman tonton. Pilih episode dan sumber yang tersimpan. Pemutar menggunakan kontrol video bawaan browser, dengan pilihan kecepatan dan kualitas HLS yang muncul bila playlist menyediakannya.
-4. Riwayat, posisi putar, dan URL yang ditambahkan tersimpan di `localStorage` browser ini. Menghapus data situs/browser akan menghapusnya.
+2. Buka bagian **video pribadi (opsional)**, lalu isi nomor episode dan URL langsung ke file `.mp4` atau playlist `.m3u8` yang diizinkan. Subtitle `.vtt` opsional.
+3. Di halaman tonton, pilih **Sumber pribadi**. Pemutar menggunakan kontrol video bawaan browser, dengan pilihan kecepatan dan kualitas HLS yang muncul bila playlist menyediakannya.
+4. Riwayat, posisi video pribadi, dan URL yang ditambahkan tersimpan di `localStorage` browser ini. Untuk iframe VidNest hanya episode, bahasa, dan waktu membuka halaman yang disimpan; waktu putar di dalam iframe tidak dapat dibaca oleh ANIDEP. Menghapus data situs/browser akan menghapus riwayat.
 
 Sumber HLS harus mengizinkan akses CORS dari `http://127.0.0.1:5173` agar dapat diputar lewat hls.js. Aplikasi tidak memproksi video atau melewati pembatasan sumber. Browser dengan dukungan HLS asli dapat memutarnya langsung.
 
@@ -35,7 +43,7 @@ Untuk menguji pemutar dengan media publik: HLS [Mux test asset](https://test-str
 
 AniList GraphQL `https://graphql.anilist.co` dipakai langsung oleh browser untuk pencarian, trending, populer, musim ini, detail, dan rekomendasi. Pencarian ditunda 350 ms, daftar dimuat 24 judul per halaman, dan respons AniList disimpan di memori selama 5 menit. Katalog dapat ditelusuri dengan tombol **Muat lebih banyak**. Jumlah episode dan status mengikuti data AniList, sehingga dapat kosong atau berubah.
 
-Antarmuka penyedia ada di `src/services/providers.js`: `searchAnime(query)`, `getAnimeDetails(id)`, `getEpisodes(animeId)`, dan `getStreamingSources(episodeId, animeId)`. Saat ini `userMediaProvider` aktif dan mengembalikan sumber yang ditambahkan pengguna. Adaptor `anihubProvider` tersedia tetapi dinonaktifkan. [README AniHub](https://github.com/manisbhusal/Anihub-Api) dan [kode rutenya](https://github.com/manisbhusal/Anihub-Api/blob/main/index.js) memuat rute `/map`, `/episodes`, dan `/watch`; layanan demo publik tidak memberikan respons episode yang dapat diverifikasi saat implementasi, dan izin penggunaan sumber videonya belum jelas. Karena itu ANIDEP tidak mengklaim episode atau streaming AniHub berfungsi dan tidak mencoba mengambil video dari scraper tersebut. `GET /api/providers` melaporkan status ini.
+Antarmuka penyedia video pribadi ada di `src/services/providers.js`: `searchAnime(query)`, `getAnimeDetails(id)`, `getEpisodes(animeId)`, dan `getStreamingSources(episodeId, animeId)`. `src/services/embedProviders.js` menyimpan konfigurasi penyedia iframe VidNest, termasuk format, bahasa, status, dan pembuat URL. Adaptor `anihubProvider` masih berupa scaffold nonaktif. [README AniHub](https://github.com/manisbhusal/Anihub-Api) dan [kode rutenya](https://github.com/manisbhusal/Anihub-Api/blob/main/index.js) memuat rute `/map`, `/episodes`, dan `/watch`; layanan demo publik tidak memberikan respons episode yang dapat diverifikasi saat implementasi, dan izin penggunaan sumber videonya belum jelas. ANIDEP tidak mencoba mengambil video dari scraper tersebut. `GET /api/providers` melaporkan status adaptor.
 
 API Express lokal saat ini menyediakan `GET /api/health` dan `GET /api/providers`, dengan batas 120 permintaan per menit per IP serta respons JSON untuk kesalahan API. Pemutar dan AniList tidak membutuhkan server proxy.
 
@@ -44,6 +52,8 @@ API Express lokal saat ini menyediakan `GET /api/health` dan `GET /api/providers
 - `src/services/anilist.js`: kueri dan cache AniList.
 - `src/services/providers.js`: antarmuka penyedia dan penyimpanan sumber pribadi.
 - `src/components/VideoPlayer.jsx`: pemutar MP4/HLS, kualitas, subtitle, dan penyimpanan progres.
+- `src/components/VidNestPlayer.jsx`: iframe VidNest bersyarat.
+- `src/services/embedProviders.js`: konfigurasi penyedia embed dan validasi URL.
 - `src/components/EpisodePicker.jsx`: pilihan episode.
 - `src/lib/history.js`: penyimpanan riwayat tontonan.
 - `src/App.jsx`: halaman katalog, detail, tonton, dan riwayat.

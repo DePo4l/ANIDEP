@@ -3,6 +3,7 @@ import express from 'express';
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
+const vidNestEnabled = process.env.VITE_VIDNEST_EMBED_AUTHORIZED === 'true' && (process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS || '').split(',').some(id => Number.isSafeInteger(Number(id)) && Number(id) > 0);
 const requests = new Map();
 app.disable('x-powered-by');
 app.use('/api', (req, res, next) => {
@@ -17,6 +18,7 @@ app.use('/api', (req, res, next) => {
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/providers', (_req, res) => res.json({ providers: [
   { id: 'user-media', name: 'Media pribadi', enabled: true },
+  { id: 'vidnest', name: 'VidNest embed', enabled: vidNestEnabled, reason: 'Aktif hanya untuk AniList ID yang hak pemutarannya telah dikonfirmasi dalam konfigurasi.' },
   { id: 'anihub', name: 'AniHub', enabled: false, reason: 'Endpoint dan izin sumber streaming belum terverifikasi.' }
 ] }));
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));
