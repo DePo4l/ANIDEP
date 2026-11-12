@@ -1,0 +1,27 @@
+{
+  "name": "anidep",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "vite --host 127.0.0.1",
+    "dev:api": "node server/index.js",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/storage.test.js tests/anilist.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.1.0",
+    "hls.js": "^1.6.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.1.2",
+    "vite": "^6.3.0"
+  }
+}
