@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { listAnime } from '../src/services/anilist.js';
+import { episodeCountOf, episodeNumbers, listAnime } from '../src/services/anilist.js';
+import { vidNestProvider } from '../src/services/embedProviders.js';
 
 test('AniList sends only filters in use and keeps pagination', async () => {
   const originalFetch = globalThis.fetch;
@@ -21,4 +22,19 @@ test('AniList sends only filters in use and keeps pagination', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('episode metadata and VidNest URLs do not invent movie episodes', () => {
+  assert.equal(episodeCountOf({ format: 'MOVIE', episodes: 1 }), 0);
+  assert.equal(episodeCountOf({ format: 'TV', episodes: 12 }), 12);
+  assert.equal(episodeCountOf({ format: 'ONA', episodes: 8, status: 'RELEASING', nextAiringEpisode: { episode: 4 } }), 3);
+  assert.equal(episodeCountOf({ format: 'TV', episodes: null, status: 'RELEASING', nextAiringEpisode: { episode: 1181 } }), 1180);
+  assert.equal(episodeCountOf({ format: 'OVA', episodes: null }), 0);
+  assert.deepEqual(episodeNumbers(0), []);
+  assert.deepEqual(episodeNumbers(3, [{ number: 5 }]), [1, 2, 3, 5]);
+  assert.equal(vidNestProvider.buildUrl(21, 1, 'sub'), 'https://vidnest.fun/anime/21/1/sub');
+  assert.equal(vidNestProvider.buildUrl(21, 2, 'dub'), 'https://vidnest.fun/anime/21/2/dub');
+  assert.equal(vidNestProvider.buildUrl(21, 0), null);
+  assert.equal(vidNestProvider.enabled, false);
+  assert.equal(vidNestProvider.isAllowed(21), false);
 });

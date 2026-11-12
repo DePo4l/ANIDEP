@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addMedia, removeMedia, userMediaProvider, validateMediaUrl } from '../src/services/providers.js';
-import { getHistory, removeHistory, saveProgress } from '../src/lib/history.js';
+import { getHistory, recordOpen, removeHistory, saveProgress } from '../src/lib/history.js';
 
 const data = new Map();
 globalThis.localStorage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
@@ -24,6 +24,10 @@ test('history saves progress and completes only near the end', () => {
   assert.equal(getHistory()['42:1'].completed, false);
   saveProgress({ animeId: 42, episode: 1, position: 9.5, duration: 10, title: 'Test' });
   assert.equal(getHistory()['42:1'].completed, true);
+  recordOpen({ animeId: 42, episode: 1, language: 'dub', title: 'Test', format: 'TV' });
+  assert.equal(getHistory()['42:1'].watchMode, 'embed');
+  assert.equal(getHistory()['42:1'].language, 'dub');
+  assert.equal(getHistory()['42:1'].position, 9.5);
   removeHistory(42, 1);
   assert.equal(getHistory()['42:1'], undefined);
 });
