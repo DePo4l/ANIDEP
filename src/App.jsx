@@ -2,7 +2,7 @@
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { episodeCountOf, episodeNumbers, getAnime, getRecommendations, listAnime, synopsisOf, titleOf } from './services/anilist.js';
 import { addMedia, removeMedia, userMediaProvider } from './services/providers.js';
-import { vidNestProvider } from './services/embedProviders.js';
+import { embedCheckReady, vidNestProvider } from './services/embedProviders.js';
 import { getHistory, recordOpen, removeHistory, saveProgress } from './lib/history.js';
 import EpisodePicker from './components/EpisodePicker.jsx';
 import VideoPlayer from './components/VideoPlayer.jsx';
@@ -96,14 +96,15 @@ function Watch() {
   const [anime, setAnime] = useState(null), [loading, setLoading] = useState(true), [episodes, setEpisodes] = useState([]), [sources, setSources] = useState([]), [sourceId, setSourceId] = useState(''), [error, setError] = useState('');
   const [playerMode, setPlayerMode] = useState('auto');
   const [vidNestCheck, setVidNestCheck] = useState({ checking: false, pageReachable: null });
+  const [sourcesLoading, setSourcesLoading] = useState(true);
   const refresh = () => Promise.all([userMediaProvider.getEpisodes(animeId), userMediaProvider.getStreamingSources(number, animeId)]).then(([list, media]) => {
     setEpisodes(list); setSources(media); setSourceId(current => media.some(item => item.id === current) ? current : media[0]?.id || '');
   });
   useEffect(() => {
     let active = true;
-    setAnime(null); setEpisodes([]); setSources([]); setSourceId(''); setLoading(true); setError(''); setPlayerMode('auto');
+    setAnime(null); setEpisodes([]); setSources([]); setSourceId(''); setLoading(true); setSourcesLoading(true); setError(''); setPlayerMode('auto');
     getAnime(animeId).then(data => { if (active) setAnime(data); }).catch(err => { if (active) setError(err.message); }).finally(() => { if (active) setLoading(false); });
-    refresh();
+    refresh().finally(() => { if (active) setSourcesLoading(false); });
     const listener = () => refresh();
     window.addEventListener('anidep-sources', listener);
     return () => { active = false; window.removeEventListener('anidep-sources', listener); };
@@ -112,20 +113,23 @@ function Watch() {
   const count = episodeCountOf(anime);
   const numbers = episodeNumbers(count, episodes);
   const validEpisode = isMovie ? number === 1 : numbers.includes(number);
-  const canCheckVidNest = Boolean(anime && validEpisode && !isMovie && number <= count && vidNestProvider.configured && vidNestProvider.supportedFormats.includes(anime.format));
+  const source = sources.find(item => item.id === sourceId);
+  const checkKey = `${animeId}:${number}`;
+  const canCheckVidNest = Boolean(anime && validEpisode && !isMovie && number <= count && vidNestProvider.isAllowed(animeId) && vidNestProvider.supportedFormats.includes(anime.format));
+  const shouldCheckVidNest = canCheckVidNest && !sourcesLoading && (playerMode === 'embed' || (playerMode === 'auto' && !source));
   useEffect(() => {
-    if (!canCheckVidNest) { setVidNestCheck({ checking: false, pageReachable: null }); return; }
+    if (!shouldCheckVidNest) { setVidNestCheck({ key: checkKey, checking: false, pageReachable: null }); return; }
     const controller = new AbortController();
-    setVidNestCheck({ checking: true, pageReachable: null });
+    setVidNestCheck({ key: checkKey, checking: true, pageReachable: null });
     fetch(`/api/providers/vidnest/check?anilistId=${animeId}&episode=${number}`, { signal: controller.signal })
       .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Pemeriksaan VidNest gagal.'); return result; })
-      .then(result => setVidNestCheck({ ...result, checking: false }))
-      .catch(err => { if (err.name !== 'AbortError') setVidNestCheck({ checking: false, pageReachable: false, error: err.message }); });
+      .then(result => setVidNestCheck({ ...result, key: checkKey, checking: false }))
+      .catch(err => { if (err.name !== 'AbortError') setVidNestCheck({ key: checkKey, checking: false, pageReachable: false, error: err.message }); });
     return () => controller.abort();
-  }, [animeId, number, canCheckVidNest]);
-  const source = sources.find(item => item.id === sourceId);
-  const embedReady = canCheckVidNest && vidNestCheck.pageReachable === true;
-  const mode = playerMode === 'auto' ? source ? 'manual' : embedReady ? 'embed' : vidNestCheck.checking ? 'loading' : 'none' : playerMode;
+  }, [animeId, number, checkKey, shouldCheckVidNest]);
+  const embedReady = shouldCheckVidNest && embedCheckReady(vidNestCheck, checkKey);
+  const checking = shouldCheckVidNest && (vidNestCheck.key !== checkKey || vidNestCheck.checking);
+  const mode = playerMode === 'auto' ? source ? 'manual' : sourcesLoading || checking ? 'loading' : embedReady ? 'embed' : 'none' : playerMode === 'embed' && checking ? 'loading' : playerMode;
   useEffect(() => {
     if (mode === 'embed' && embedReady) recordOpen({ animeId, episode: number, language: 'sub', title: titleOf(anime), cover: anime.coverImage?.large, format: anime.format });
   }, [animeId, number, mode, embedReady]);
@@ -137,7 +141,7 @@ function Watch() {
   const index = numbers.indexOf(number);
   const previous = index > 0 ? numbers[index - 1] : null;
   const next = index >= 0 ? numbers[index + 1] : null;
-  const emptyMessage = isMovie ? 'VidNest tidak mendokumentasikan film dengan AniList ID. Lihat tautan resmi atau gunakan video pribadi.' : !validEpisode ? 'Nomor episode ini belum tercantum di AniList atau sumber pribadi.' : !vidNestProvider.configured ? 'VidNest dimatikan melalui konfigurasi.' : vidNestCheck.error ? `VidNest tidak dapat diperiksa: ${vidNestCheck.error}` : vidNestCheck.httpStatus ? `Halaman VidNest merespons HTTP ${vidNestCheck.httpStatus}. Video episode ini belum tersedia di ANIDEP.` : 'Belum ada sumber video yang dapat diputar untuk episode ini.';
+  const emptyMessage = isMovie ? 'VidNest tidak mendokumentasikan film dengan AniList ID. Lihat tautan resmi atau gunakan video pribadi.' : !validEpisode ? 'Nomor episode ini belum tercantum di AniList atau sumber pribadi.' : !canCheckVidNest ? vidNestProvider.unavailableReason : vidNestCheck.key === checkKey && vidNestCheck.error ? `VidNest tidak dapat diperiksa: ${vidNestCheck.error}` : vidNestCheck.key === checkKey && vidNestCheck.httpStatus ? `Halaman VidNest merespons HTTP ${vidNestCheck.httpStatus}. Video episode ini belum tersedia di ANIDEP.` : 'Belum ada sumber video yang dapat diputar untuk episode ini.';
   return <main className="container page"><Link className="back" to={`/anime/${animeId}`}>← Detail anime</Link><div className="watch-layout"><div>
     {mode === 'manual' && source ? <VideoPlayer key={animeId + ':' + number + ':' + sourceId} source={source} resumeAt={history?.position || 0} onProgress={(position, duration, completed) => saveProgress({ animeId, episode: number, position, duration, completed, title: titleOf(anime), cover: anime.coverImage?.large, format: anime.format })} /> : mode === 'embed' && embedReady ? <VidNestPlayer anilistId={animeId} episode={number} /> : mode === 'demo' ? <><VideoPlayer source={demoSource} /><p className="embed-note">Ini video uji publik, bukan episode {titleOf(anime)}.</p></> : <div className="player-empty">{mode === 'loading' ? 'Memeriksa halaman VidNest…' : emptyMessage}</div>}
     <div className="watch-title"><img className="watch-cover" src={anime.coverImage?.large} alt="" /><div><span className="eyebrow">SEDANG DITONTON</span><h1>{titleOf(anime)}</h1><p>{isMovie ? 'Film' : `Episode ${number}`} {anime.duration ? '· ' + anime.duration + ' menit' : ''}</p></div></div>
@@ -145,7 +149,7 @@ function Watch() {
     <section className="block"><h2>Tentang anime</h2><p className="muted">{synopsisOf(anime) || 'Sinopsis belum tersedia.'}</p><OfficialLinks anime={anime} /></section>
     {recent.length > 0 && <section className="block"><h2>Lanjutkan menonton</h2><div className="continue-grid">{recent.map(item => <Link className="continue-card" key={item.animeId + ':' + item.episode} to={item.format === 'MOVIE' ? `/watch/${item.animeId}` : `/watch/${item.animeId}/${item.episode}`}><img src={item.cover} alt="" /><div><b>{item.title}</b><span>{item.format === 'MOVIE' ? 'Film' : `Episode ${item.episode}`}</span>{item.watchMode !== 'embed' && <progress value={item.position} max={item.duration || 1} />}</div></Link>)}</div></section>}
   </div><aside><div className="side-panel"><span className="eyebrow">SUMBER VIDEO</span><h2>Pilih sumber</h2>
-    {canCheckVidNest && <><button className="button source-button" disabled={!embedReady} onClick={() => setPlayerMode('embed')}>VidNest{embedReady ? mode === 'embed' ? ' · dipilih' : '' : vidNestCheck.checking ? ' · memeriksa' : ' · tidak dapat dibuka'}</button><p className="muted">{embedReady ? 'Halaman embed dapat diakses. Ketersediaan dan playback episode belum dapat diverifikasi dari luar iframe.' : 'Jika VidNest gagal, gunakan sumber pribadi atau tautan resmi di bawah deskripsi.'}</p></>}
+    {canCheckVidNest && <><button className="button source-button" onClick={() => setPlayerMode('embed')}>VidNest{mode === 'embed' && embedReady ? ' · dipilih' : checking ? ' · memeriksa' : ''}</button><p className="muted">{embedReady ? 'Halaman embed dapat diakses. Ketersediaan dan playback episode belum dapat diverifikasi dari luar iframe.' : 'Jika VidNest gagal, gunakan sumber pribadi atau tautan resmi di bawah deskripsi.'}</p></>}
     {sources.length > 0 && <><button className="button source-button" onClick={() => setPlayerMode('manual')}>Sumber pribadi{mode === 'manual' ? ' · dipilih' : ''}</button><select aria-label="Sumber streaming pribadi" value={sourceId} onChange={event => { setSourceId(event.target.value); setPlayerMode('manual'); }}>{sources.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>{mode === 'manual' && <button className="text-button danger" onClick={() => { removeMedia(animeId, number, sourceId); refresh(); setPlayerMode('auto'); }}>Hapus sumber ini</button>}</>}
     {!embedReady && !sources.length && <p className="muted">Belum ada sumber episode yang terverifikasi. Video demo di bawah hanya untuk memeriksa pemutar.</p>}
     <button className="button source-button" onClick={() => setPlayerMode('demo')}>Uji pemutar dengan video demo{mode === 'demo' ? ' · dipilih' : ''}</button>

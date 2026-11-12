@@ -4,7 +4,8 @@ import { checkVidNestPage, validId } from './vidnest.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
-const vidNestConfigured = process.env.VITE_VIDNEST_ENABLED !== 'false';
+const allowedIds = new Set((process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS || '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
+const vidNestConfigured = process.env.VITE_VIDNEST_EMBED_AUTHORIZED === 'true' && allowedIds.size > 0;
 const requests = new Map();
 const vidNestChecks = new Map();
 app.disable('x-powered-by');
@@ -26,7 +27,7 @@ app.get('/api/providers', (_req, res) => res.json({ providers: [
 app.get('/api/providers/vidnest/check', async (req, res) => {
   const { anilistId, episode } = req.query;
   if (!validId(anilistId) || !validId(episode)) return res.status(400).json({ error: 'AniList ID dan episode harus bilangan bulat positif.' });
-  if (!vidNestConfigured) return res.json({ configured: false, pageReachable: null, episodeAvailability: 'unknown', playbackVerified: false });
+  if (!vidNestConfigured || !allowedIds.has(Number(anilistId))) return res.json({ configured: false, pageReachable: null, episodeAvailability: 'unknown', playbackVerified: false });
   const key = `${anilistId}:${episode}`;
   const cached = vidNestChecks.get(key);
   if (cached?.expires > Date.now()) return res.json({ configured: true, ...cached.value });
