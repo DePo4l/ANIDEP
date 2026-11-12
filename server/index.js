@@ -9,6 +9,8 @@ const allowedIds = new Set((process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS || '').
 const vidNestConfigured = process.env.VITE_VIDNEST_EMBED_AUTHORIZED === 'true' && allowedIds.size > 0;
 const requests = new Map();
 const vidNestChecks = new Map();
+const movieMatches = new Map();
+const tmdbSearches = new Map();
 app.disable('x-powered-by');
 app.use('/api', (req, res, next) => {
   const now = Date.now();
@@ -40,14 +42,26 @@ app.get('/api/providers/vidnest/check', async (req, res) => {
   res.json({ configured: true, ...value });
 });
 app.get('/api/tmdb/movies/search', async (req, res) => {
-  try { res.json({ results: await searchTmdbMovies(req.query.q, process.env.TMDB_API_READ_ACCESS_TOKEN) }); }
+  try {
+    if (!process.env.TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'Token TMDB belum diatur di server.' });
+    const key = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const cached = tmdbSearches.get(key);
+    if (cached?.expires > Date.now()) return res.json({ results: cached.value });
+    const results = await searchTmdbMovies(req.query.q, process.env.TMDB_API_READ_ACCESS_TOKEN);
+    tmdbSearches.set(key, { value: results, expires: Date.now() + 5 * 60_000 });
+    res.json({ results });
+  }
   catch (error) { console.warn(`[tmdb] search failed: ${error.message}`); res.status(error.status || 502).json({ error: error.message }); }
 });
 app.get('/api/movies/:anilistId/tmdb', async (req, res) => {
   if (!validId(req.params.anilistId)) return res.status(400).json({ error: 'AniList ID harus bilangan bulat positif.' });
   try {
+    if (!process.env.TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'Token TMDB belum diatur di server.' });
+    const cached = movieMatches.get(req.params.anilistId);
+    if (cached?.expires > Date.now()) return res.json(cached.value);
     const result = await matchAniListMovie(req.params.anilistId, process.env.TMDB_API_READ_ACCESS_TOKEN);
     console.info(`[tmdb] AniList ${req.params.anilistId} -> ${result.tmdbId || 'no confident match'}`);
+    movieMatches.set(req.params.anilistId, { value: result, expires: Date.now() + 5 * 60_000 });
     res.json(result);
   } catch (error) {
     console.warn(`[tmdb] AniList ${req.params.anilistId} match failed: ${error.message}`);
@@ -55,8 +69,9 @@ app.get('/api/movies/:anilistId/tmdb', async (req, res) => {
   }
 });
 app.get('/api/providers/vidnest/movie/check', async (req, res) => {
-  if (!validId(req.query.tmdbId)) return res.status(400).json({ error: 'TMDB ID harus bilangan bulat positif.' });
-  if (!vidNestConfigured) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
+  if (!validId(req.query.anilistId) || !validId(req.query.tmdbId)) return res.status(400).json({ error: 'AniList ID dan TMDB ID harus bilangan bulat positif.' });
+  const matched = movieMatches.get(req.query.anilistId);
+  if (!vidNestConfigured || !allowedIds.has(Number(req.query.anilistId)) || matched?.expires <= Date.now() || matched?.value.tmdbId !== Number(req.query.tmdbId)) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
   const key = `movie:${req.query.tmdbId}`;
   const cached = vidNestChecks.get(key);
   if (cached?.expires > Date.now()) return res.json({ configured: true, ...cached.value });
@@ -68,7 +83,6 @@ app.get('/api/providers/vidnest/movie/check', async (req, res) => {
   res.json({ configured: true, ...value });
 });
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));
-app.listen(port, '127.0.0.1', error => {
-  if (error) { console.error(`ANIDEP API gagal dijalankan: ${error.message}`); process.exitCode = 1; return; }
-  console.log(`ANIDEP API: http://127.0.0.1:${port}`);
-});
+const server = app.listen(port, '127.0.0.1');
+server.on('listening', () => console.log(`ANIDEP API: http://127.0.0.1:${port}`));
+server.on('error', error => { console.error(`ANIDEP API gagal dijalankan: ${error.message}`); process.exitCode = 1; });

@@ -40,6 +40,34 @@ test('movie match rejects series, mismatched titles, and ambiguous matches', asy
   assert.equal(ambiguous.match, null);
 });
 
+test('movie matching requires a year and does not confuse different Japanese titles', async () => {
+  let searches = 0;
+  const noYear = await matchAniListMovie('936', 'fake-test-token', async url => {
+    if (!String(url).includes('graphql.anilist')) searches++;
+    return response({ data: { Media: { ...anime936, startDate: { year: null } } } });
+  });
+  assert.equal(noYear.match, null);
+  assert.equal(searches, 0);
+  const japanese = { ...anime936, title: { romaji: 'ナルト' }, synonyms: [] };
+  const wrongTitle = await matchAniListMovie('936', 'fake-test-token', async url => String(url).includes('graphql.anilist')
+    ? response({ data: { Media: japanese } })
+    : response({ results: [{ ...tmdbMovie, title: '別作品', original_title: '別作品' }] }));
+  assert.equal(wrongTitle.match, null);
+});
+
+test('a distinct alias resolves ambiguous primary movie matches', async () => {
+  const anime = { ...anime936, title: { english: 'Shared Title', romaji: '別名' }, synonyms: [] };
+  const matched = await matchAniListMovie('936', 'fake-test-token', async url => {
+    if (String(url).includes('graphql.anilist')) return response({ data: { Media: anime } });
+    const title = new URL(url).searchParams.get('query');
+    return title === 'Shared Title' ? response({ results: [
+      { id: 1, title, release_date: '2005-01-01' },
+      { id: 2, title, release_date: '2005-02-01' }
+    ] }) : response({ results: [{ id: 2, title: '別名', release_date: '2005-02-01' }] });
+  });
+  assert.equal(matched.tmdbId, 2);
+});
+
 test('VidNest movie check uses documented TMDB URL without claiming playback', async () => {
   const calls = [];
   const request = async (url, options) => { calls.push([url, options.method]); return { ok: true, status: 200 }; };

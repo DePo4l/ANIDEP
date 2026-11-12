@@ -6,7 +6,7 @@ export class MovieLookupError extends Error {
 }
 
 function normalize(title) {
-  return (title || '').normalize('NFKD').toLowerCase().replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return (typeof title === 'string' ? title : '').normalize('NFKD').toLowerCase().replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ').trim();
 }
 
 export async function searchTmdbMovies(query, token, request = fetch) {
@@ -23,7 +23,7 @@ export async function searchTmdbMovies(query, token, request = fetch) {
   let data;
   try { data = await response.json(); } catch { throw new MovieLookupError('Respons TMDB bukan JSON yang valid.'); }
   if (!Array.isArray(data.results)) throw new MovieLookupError('Respons TMDB tidak memuat daftar film.');
-  return data.results.filter(movie => Number.isSafeInteger(movie.id) && movie.id > 0).map(movie => ({
+  return data.results.filter(movie => movie && Number.isSafeInteger(movie.id) && movie.id > 0).map(movie => ({
     id: movie.id, title: movie.title, originalTitle: movie.original_title, releaseDate: movie.release_date
   }));
 }
@@ -44,17 +44,22 @@ export async function matchAniListMovie(anilistId, token, request = fetch) {
   const anime = data.data?.Media;
   if (!anime) throw new MovieLookupError('Judul tidak ditemukan di AniList.', 404);
   if (anime.format !== 'MOVIE') throw new MovieLookupError('Judul AniList ini bukan film.', 400);
-  const titles = [...new Set([anime.title?.english, anime.title?.romaji, ...(anime.synonyms || [])].filter(Boolean))].slice(0, 4);
   const year = anime.startDate?.year;
-  for (const title of titles) {
-    const movies = await searchTmdbMovies(title, token, request);
-    const matches = movies.filter(movie => {
-      const sameTitle = [movie.title, movie.originalTitle].some(candidate => normalize(candidate) === normalize(title));
-      const movieYear = Number(movie.releaseDate?.slice(0, 4));
-      return sameTitle && (!year || (movieYear && Math.abs(movieYear - year) <= 1));
-    });
-    if (matches.length === 1) return { anilistId: anime.id, tmdbId: matches[0].id, title: matches[0].title, releaseDate: matches[0].releaseDate };
-    if (matches.length > 1) return { anilistId: anime.id, match: null, reason: 'Beberapa film TMDB cocok; pilih tautan resmi agar tidak membuka film yang salah.' };
-  }
+  if (!Number.isSafeInteger(year) || year < 1888) return { anilistId: anime.id, match: null, reason: 'Tahun film belum tersedia di AniList; kecocokan TMDB tidak dapat dipastikan.' };
+  const titles = [...new Set([anime.title?.english, anime.title?.romaji, anime.title?.native, ...(anime.synonyms || [])].filter(title => normalize(title).length > 1))];
+  const matchesFor = (movies, title) => movies.filter(movie => {
+    const sameTitle = [movie.title, movie.originalTitle].some(candidate => normalize(candidate) === normalize(title));
+    const movieYear = Number(movie.releaseDate?.slice(0, 4));
+    return sameTitle && Number.isSafeInteger(movieYear) && Math.abs(movieYear - year) <= 1;
+  });
+  if (!titles.length) return { anilistId: anime.id, match: null, reason: 'Judul film AniList tidak tersedia untuk pencocokan TMDB.' };
+  const primary = matchesFor(await searchTmdbMovies(titles[0], token, request), titles[0]);
+  const matched = movie => ({ anilistId: anime.id, tmdbId: movie.id, title: movie.title, releaseDate: movie.releaseDate });
+  if (primary.length === 1) return matched(primary[0]);
+  const alternatives = (await Promise.all(titles.slice(1).map(async title => matchesFor(await searchTmdbMovies(title, token, request), title)))).flat();
+  const candidates = primary.length ? primary.filter(movie => alternatives.some(other => other.id === movie.id)) : alternatives;
+  const unique = new Map(candidates.map(movie => [movie.id, movie]));
+  if (unique.size === 1) return matched(unique.values().next().value);
+  if (primary.length > 1 || unique.size > 1) return { anilistId: anime.id, match: null, reason: 'Beberapa film TMDB cocok; pilih tautan resmi agar tidak membuka film yang salah.' };
   return { anilistId: anime.id, match: null, reason: 'Film ini belum dapat dicocokkan dengan yakin di TMDB.' };
 }
