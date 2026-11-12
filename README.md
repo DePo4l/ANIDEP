@@ -14,6 +14,8 @@ npm run dev
 
 Buka `http://127.0.0.1:5173`. Vite menjalankan situs di port 5173 dan Express menjalankan API lokal di port 3001. `PORT` di `.env` mengubah port API; jika diubah, sesuaikan target proxy di `vite.config.js`.
 
+Untuk pencocokan film, buka `.env` di folder proyek dan isi `TMDB_API_READ_ACCESS_TOKEN=` dengan **API Read Access Token** milikmu. Jangan pakai API Key pada variabel ini. Simpan file, hentikan `npm run dev` yang sedang berjalan dengan `Ctrl+C`, lalu jalankan `npm run dev` lagi. `.env` diabaikan Git; token hanya dibaca server Express dan tidak boleh memakai awalan `VITE_`.
+
 ```powershell
 npm test
 npm run build
@@ -26,7 +28,7 @@ npm run preview
 
 VidNest hanya aktif untuk judul yang kamu izinkan di `.env`: set `VITE_VIDNEST_EMBED_AUTHORIZED=true` dan isi `VITE_VIDNEST_ALLOWED_ANILIST_IDS` dengan AniList ID yang kontennya boleh kamu embed. Jika video pribadi tersedia, ANIDEP memilihnya tanpa menghubungi VidNest; kamu dapat memilih VidNest secara manual untuk judul yang diizinkan. Sebelum menampilkan iframe, API lokal mengirim permintaan `HEAD` ke halaman embed. Pemeriksaan ini **tidak** mendeteksi apakah video di dalam iframe bisa diputar. Bila halaman gagal, tautan menonton resmi AniList dan video demo publik tetap tersedia. Tidak ada proxy atau ekstraksi URL video. Pilihan Sub/Dub ditunda.
 
-Film tidak memakai URL `/anime/.../1/...`: dokumentasi VidNest menggunakan TMDB ID untuk film, sedangkan ANIDEP memakai AniList ID. Halaman film menampilkan tautan streaming resmi dari AniList bila tersedia dan tetap mendukung video pribadi.
+Film tidak memakai URL `/anime/.../1/...`: dokumentasi VidNest menggunakan TMDB ID untuk film, sedangkan ANIDEP memakai AniList ID. API lokal mencari judul film AniList di TMDB, mencocokkan judul dan tahun, lalu memeriksa halaman `/movie/[TMDB_ID]` sebelum menampilkan iframe. Film yang tidak cocok, token TMDB yang kosong/salah, atau halaman VidNest yang gagal akan menampilkan pesan yang jelas dan tautan streaming resmi AniList bila tersedia. Respons halaman HTTP 200 tidak membuktikan film dapat diputar atau berlisensi.
 
 ## Menggunakan video pribadi
 
@@ -45,7 +47,7 @@ AniList GraphQL `https://graphql.anilist.co` dipakai langsung oleh browser untuk
 
 Antarmuka penyedia video pribadi ada di `src/services/providers.js`: `searchAnime(query)`, `getAnimeDetails(id)`, `getEpisodes(animeId)`, dan `getStreamingSources(episodeId, animeId)`. `src/services/embedProviders.js` menyimpan konfigurasi VidNest dan pembuat URL. `GET /api/providers` membedakan konfigurasi VidNest dari ketersediaan episode; `GET /api/providers/vidnest/check?anilistId=21&episode=1` hanya memeriksa keterjangkauan halaman embed. Adaptor `anihubProvider` masih berupa scaffold nonaktif. [README AniHub](https://github.com/manisbhusal/Anihub-Api) dan [kode rutenya](https://github.com/manisbhusal/Anihub-Api/blob/main/index.js) memuat rute `/map`, `/episodes`, dan `/watch`; layanan demo publik tidak memberikan respons episode yang dapat diverifikasi saat implementasi, dan izin penggunaan sumber videonya belum jelas. ANIDEP tidak mencoba mengambil video dari scraper tersebut.
 
-API Express lokal saat ini menyediakan `GET /api/health` dan `GET /api/providers`, dengan batas 120 permintaan per menit per IP serta respons JSON untuk kesalahan API. Pemutar dan AniList tidak membutuhkan server proxy.
+API Express lokal menyediakan `GET /api/health`, `GET /api/providers`, `GET /api/tmdb/movies/search?q=...`, `GET /api/movies/:anilistId/tmdb`, dan pemeriksaan halaman VidNest untuk anime serta film. TMDB memakai Bearer Read Access Token di backend saja. Pencarian film meminta `query` dan `include_adult=false`; pencocokan menolak judul/tahun yang tidak meyakinkan. API dibatasi 120 permintaan per menit per IP. AniList pada katalog tetap dipanggil langsung oleh browser; pencocokan film mengambil metadata minimum di backend.
 
 ## Struktur
 
@@ -59,5 +61,6 @@ API Express lokal saat ini menyediakan `GET /api/health` dan `GET /api/providers
 - `src/App.jsx`: halaman katalog, detail, tonton, dan riwayat.
 - `server/index.js`: API lokal.
 - `server/vidnest.js`: pemeriksaan halaman embed tanpa menganggap video tersedia.
+- `server/tmdb.js`: pencarian film TMDB dan pencocokan judul film AniList.
 
 Gunakan hanya media yang memang boleh kamu putar. ANIDEP tidak menyediakan atau mengunduh episode anime.

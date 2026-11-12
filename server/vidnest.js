@@ -11,3 +11,12 @@ export async function checkVidNestPage(anilistId, episode, request = fetch) {
     return { pageReachable: false, httpStatus: null, episodeAvailability: 'unknown', playbackVerified: false, error: error.message };
   }
 }
+
+export async function checkVidNestMoviePage(tmdbId, request = fetch) {
+  try {
+    const response = await request(`https://vidnest.fun/movie/${tmdbId}`, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
+    return { pageReachable: response.ok, httpStatus: response.status, playbackVerified: false };
+  } catch (error) {
+    return { pageReachable: false, httpStatus: null, playbackVerified: false, error: error.message };
+  }
+}

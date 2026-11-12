@@ -35,6 +35,8 @@ test('episode metadata and VidNest URLs do not invent movie episodes', () => {
   assert.equal(vidNestProvider.buildUrl(21, 1), 'https://vidnest.fun/anime/21/1/sub');
   assert.equal(vidNestProvider.buildUrl(21, 2), 'https://vidnest.fun/anime/21/2/sub');
   assert.equal(vidNestProvider.buildUrl(21, 0), null);
+  assert.equal(vidNestProvider.buildMovieUrl(16910), 'https://vidnest.fun/movie/16910');
+  assert.equal(vidNestProvider.buildMovieUrl(0), null);
   assert.equal(vidNestProvider.configured, false);
   assert.equal(vidNestProvider.isAllowed(21), false);
   assert.equal(embedCheckReady({ key: '21:1', pageReachable: true }, '21:2'), false);
