@@ -16,4 +16,6 @@ test('VidNest check reports page reachability without claiming playback', async 
   const missing = await checkVidNestPage(21, 9999, async () => ({ ok: false, status: 404 }));
   assert.equal(missing.pageReachable, false);
   assert.equal(missing.httpStatus, 404);
+  const headBlocked = await checkVidNestPage(21, 1, async () => ({ ok: false, status: 405 }));
+  assert.equal(headBlocked.pageReachable, null);
 });

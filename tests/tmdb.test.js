@@ -30,6 +30,8 @@ test('TMDB search handles missing and invalid credentials and malformed results'
   await assert.rejects(searchTmdbMovies('a', 'fake-test-token'), { status: 400 });
   await assert.rejects(searchTmdbMovies('Naruto', 'fake-test-token', async () => response({}, 401)), { status: 502, message: 'Token TMDB tidak valid atau ditolak.' });
   await assert.rejects(searchTmdbMovies('Naruto', 'fake-test-token', async () => response({})), { status: 502 });
+  assert.equal((await searchTmdbMovies('  Naruto  ', 'fake-test-token', async () => response({ results: [] }))).length, 0);
+  await assert.rejects(matchAniListMovie('99999999', 'fake-test-token', async () => response({ errors: [{ message: 'Not Found' }] }, 404)), { status: 404, message: 'Judul tidak ditemukan di AniList.' });
 });
 
 test('movie match rejects series, mismatched titles, and ambiguous matches', async () => {
@@ -68,6 +70,22 @@ test('a distinct alias resolves ambiguous primary movie matches', async () => {
   assert.equal(matched.tmdbId, 2);
 });
 
+test('movie matching deduplicates and limits aliases while tolerating a failed alias', async () => {
+  const anime = { ...anime936, title: { english: 'Shared Title', romaji: 'shared title', native: '別名' }, synonyms: ['別名', 'Alias Two', 'Alias Three', 'Alias Four', 'Alias Five'] };
+  const searches = [];
+  const result = await matchAniListMovie('936', 'fake-test-token', async url => {
+    if (String(url).includes('graphql.anilist')) return response({ data: { Media: anime } });
+    const query = new URL(url).searchParams.get('query');
+    searches.push(query);
+    if (query === 'Alias Two') throw new Error('temporary');
+    if (query === '別名') return response({ results: [{ id: 16910, title: '別名', release_date: '2005-08-06' }] });
+    return response({ results: [] });
+  });
+  assert.equal(result.tmdbId, 16910);
+  assert.ok(searches.length <= 5);
+  assert.equal(searches.filter(query => query.toLowerCase() === 'shared title').length, 1);
+});
+
 test('VidNest movie check uses documented TMDB URL without claiming playback', async () => {
   const calls = [];
   const request = async (url, options) => { calls.push([url, options.method]); return { ok: true, status: 200 }; };
@@ -76,4 +94,5 @@ test('VidNest movie check uses documented TMDB URL without claiming playback', a
   assert.equal(result.pageReachable, true);
   assert.equal(result.playbackVerified, false);
   assert.equal((await checkVidNestMoviePage(16910, async () => ({ ok: false, status: 404 }))).pageReachable, false);
+  assert.equal((await checkVidNestMoviePage(16910, async () => ({ ok: false, status: 403 }))).pageReachable, null);
 });

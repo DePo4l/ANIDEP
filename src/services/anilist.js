@@ -41,7 +41,7 @@ export function episodeRanges(numbers, size = 50) {
 }
 export function visibleEpisodeNumbers(numbers, start, search = '', size = 50) {
   const query = search.trim();
-  return numbers.filter(number => query ? String(number).includes(query) : number >= start && number < start + size);
+  return numbers.filter(number => query ? /^\d+$/.test(query) && number === Number(query) : number >= start && number < start + size);
 }
 export function episodeNeighbors(numbers, current) {
   const index = numbers.indexOf(Number(current));

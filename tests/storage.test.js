@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addMedia, removeMedia, userMediaProvider, validateMediaUrl } from '../src/services/providers.js';
-import { getHistory, groupContinueWatching, recordOpen, recordSelection, removeHistory, saveProgress } from '../src/lib/history.js';
+import { clearProgress, getHistory, groupContinueWatching, recordOpen, recordSelection, removeHistory, saveProgress } from '../src/lib/history.js';
 
 const data = new Map();
 globalThis.localStorage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
@@ -44,10 +44,50 @@ test('continue watching groups legacy episode records by AniList ID and uses rec
   stored['20:15'].watchedAt = 4000;
   assert.deepEqual(groupContinueWatching(stored).map(item => [item.animeId, item.episode]), [[20, 15], [21, 10]]);
   stored['20:15'].completed = true;
-  assert.equal(groupContinueWatching(stored)[0].episode, 15);
+  assert.deepEqual(groupContinueWatching(stored).map(item => item.animeId), [21]);
   recordSelection({ animeId: 20, episode: 15, title: 'Naruto', format: 'TV' });
   assert.equal(getHistory()['20:15'].position, 90);
   assert.equal(getHistory()['20:15'].watchMode, 'manual');
+  assert.ok(getHistory()['20:15'].selectedAt);
   assert.ok(getHistory()['20:220']);
   data.delete('anidep:watch-history:v1');
+});
+
+test('selection stays in history but does not replace the last opened episode', () => {
+  data.set('anidep:watch-history:v1', JSON.stringify({
+    '20:220': { animeId: '20', episode: 220, watchedAt: 1000, watchMode: 'embed' },
+    '21:10': { episode: 10, watchedAt: 500, watchMode: 'embed' }
+  }));
+  recordSelection({ animeId: 20, episode: 15, title: 'Naruto' });
+  assert.equal(getHistory()['20:15'].watchMode, 'selection');
+  assert.equal(groupContinueWatching(getHistory())[0].episode, 220);
+  assert.deepEqual(groupContinueWatching(getHistory()).map(item => item.animeId), [20, 21]);
+  saveProgress({ animeId: 20, episode: 15, position: 30, duration: 200, title: 'Naruto' });
+  assert.equal(groupContinueWatching(getHistory())[0].episode, 15);
+  clearProgress(20, 15);
+  assert.equal(getHistory()['20:15'].position, undefined);
+  assert.equal(groupContinueWatching(getHistory())[0].episode, 220);
+  data.delete('anidep:watch-history:v1');
+});
+
+test('array-shaped legacy history migrates without losing episodes', () => {
+  data.set('anidep:watch-history:v1', JSON.stringify([
+    { animeId: 20, episode: 1, watchedAt: 1000, watchMode: 'embed' },
+    { animeId: 20, episode: 220, watchedAt: 3000, watchMode: 'embed' }
+  ]));
+  recordSelection({ animeId: 20, episode: 15, title: 'Naruto' });
+  assert.equal(getHistory()['20:220'].episode, 220);
+  assert.equal(getHistory()['20:15'].episode, 15);
+  assert.equal(groupContinueWatching(getHistory())[0].episode, 220);
+  data.delete('anidep:watch-history:v1');
+});
+
+test('watch page history writes do not crash when browser storage is blocked', () => {
+  const original = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => null, setItem: () => { throw new Error('blocked'); } };
+  try {
+    assert.doesNotThrow(() => recordOpen({ animeId: 21, episode: 1, title: 'One Piece' }));
+    assert.doesNotThrow(() => recordSelection({ animeId: 21, episode: 2, title: 'One Piece' }));
+  }
+  finally { globalThis.localStorage = original; }
 });

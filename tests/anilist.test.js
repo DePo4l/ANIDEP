@@ -36,6 +36,8 @@ test('episode navigation, ranges, and search use known numbers without claiming 
   ]);
   assert.deepEqual(visibleEpisodeNumbers(long, 201).slice(0, 2), [201, 202]);
   assert.deepEqual(visibleEpisodeNumbers(long, 1, '220'), [220]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 1, '1'), [1]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 1, 'Episode 12'), []);
   assert.deepEqual(episodeNeighbors(long, 220), { previous: 219, next: null });
   assert.deepEqual(episodeRanges(episodeNumbers(0)), []);
 });
