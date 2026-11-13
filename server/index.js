@@ -5,8 +5,8 @@ import { matchAniListMovie, MovieLookupError, searchTmdbMovies } from './tmdb.js
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
-const allowedIds = new Set((process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS || '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
-const vidNestConfigured = process.env.VITE_VIDNEST_EMBED_AUTHORIZED === 'true' && allowedIds.size > 0;
+const allowedIds = new Set((process.env.VIDNEST_ALLOWED_ANILIST_IDS ?? process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS ?? '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
+const vidNestConfigured = (process.env.VIDNEST_EMBED_AUTHORIZED ?? process.env.VITE_VIDNEST_EMBED_AUTHORIZED) === 'true' && allowedIds.size > 0;
 const requests = new Map();
 const vidNestChecks = new Map();
 const movieMatches = new Map();
@@ -50,7 +50,7 @@ app.use('/api', (req, res, next) => {
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/providers', (_req, res) => res.json({ providers: [
   { id: 'user-media', name: 'Media pribadi', enabled: true },
-  { id: 'vidnest', name: 'VidNest embed', configured: vidNestConfigured, pageReachability: 'not-checked', episodeAvailability: 'unknown', playbackVerified: false },
+  { id: 'vidnest', name: 'VidNest embed', configured: vidNestConfigured, allowedAnilistIds: vidNestConfigured ? [...allowedIds] : [], pageReachability: 'not-checked', episodeAvailability: 'unknown', playbackVerified: false },
   { id: 'anihub', name: 'AniHub', enabled: false, reason: 'Endpoint dan izin sumber streaming belum terverifikasi.' }
 ] }));
 app.get('/api/providers/vidnest/check', async (req, res) => {

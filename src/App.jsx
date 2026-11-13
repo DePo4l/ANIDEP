@@ -2,7 +2,7 @@
 import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import { episodeCountOf, episodeNumbers, getAnime, getRecommendations, listAnime, synopsisOf, titleOf } from './services/anilist.js';
 import { addMedia, removeMedia, userMediaProvider } from './services/providers.js';
-import { embedCheckReady, vidNestProvider } from './services/embedProviders.js';
+import { embedCheckReady, useVidNestAllowlist, vidNestProvider } from './services/embedProviders.js';
 import { clearProgress, getHistory, groupContinueWatching, historyActivity, recordOpen, recordSelection, removeHistory, saveProgress } from './lib/history.js';
 import EpisodePicker from './components/EpisodePicker.jsx';
 import EpisodeSidebar from './components/EpisodeSidebar.jsx';
@@ -92,6 +92,7 @@ function Detail() {
 }
 
 function Watch() {
+  useVidNestAllowlist();
   const { animeId, episodeNumber } = useParams();
   const number = Number(episodeNumber ?? 1);
   const [anime, setAnime] = useState(null), [loading, setLoading] = useState(true), [episodes, setEpisodes] = useState([]), [sources, setSources] = useState([]), [sourceId, setSourceId] = useState(''), [error, setError] = useState('');

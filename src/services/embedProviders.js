@@ -1,13 +1,31 @@
-const authorized = import.meta.env?.VITE_VIDNEST_EMBED_AUTHORIZED === 'true';
-const allowedIds = new Set((import.meta.env?.VITE_VIDNEST_ALLOWED_ANILIST_IDS || '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
+import { useEffect, useState } from 'react';
+
+// The allowlist lives on the server (VIDNEST_ALLOWED_ANILIST_IDS), so editing it needs only a server restart.
+let allowedIds = new Set();
+let loadPromise = null;
+function loadAllowlist() {
+  loadPromise ||= fetch('/api/providers')
+    .then(response => response.ok ? response.json() : Promise.reject(new Error('providers')))
+    .then(data => {
+      const ids = data.providers?.find(provider => provider.id === 'vidnest')?.allowedAnilistIds || [];
+      allowedIds = new Set(ids.map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
+    })
+    .catch(() => { loadPromise = null; });
+  return loadPromise;
+}
+// Re-renders the caller once the allowlist has loaded.
+export function useVidNestAllowlist() {
+  const [, setReady] = useState(false);
+  useEffect(() => { let active = true; loadAllowlist().then(() => active && setReady(true)); return () => { active = false; }; }, []);
+}
 
 export const vidNestProvider = {
   id: 'vidnest',
   name: 'VidNest',
-  configured: authorized && allowedIds.size > 0,
+  get configured() { return allowedIds.size > 0; },
   supportedFormats: ['TV', 'OVA', 'ONA', 'SPECIAL', 'MOVIE'],
-  isAllowed(anilistId) { return authorized && allowedIds.has(Number(anilistId)); },
-  unavailableReason: 'VidNest memerlukan izin embed untuk judul ini. Tambahkan AniList ID ke daftar izin di .env jika kamu memiliki hak untuk kontennya.',
+  isAllowed(anilistId) { return allowedIds.has(Number(anilistId)); },
+  unavailableReason: 'VidNest memerlukan izin embed untuk judul ini. Tambahkan AniList ID ke VIDNEST_ALLOWED_ANILIST_IDS di .env server jika kamu memiliki hak untuk kontennya.',
   // A reachable embed page does not establish that an episode exists or can play.
   buildUrl(anilistId, episode) {
     const id = Number(anilistId);
