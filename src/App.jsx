@@ -2,7 +2,7 @@
 import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import { episodeCountOf, episodeNumbers, getAnime, getRecommendations, listAnime, synopsisOf, titleOf } from './services/anilist.js';
 import { addMedia, removeMedia, userMediaProvider } from './services/providers.js';
-import { embedCheckReady, useVidNestAllowlist, vidNestProvider } from './services/embedProviders.js';
+import { embedCheckReady, useVidNestStatus, vidNestProvider } from './services/embedProviders.js';
 import { clearProgress, getHistory, groupContinueWatching, historyActivity, recordOpen, recordSelection, removeHistory, saveProgress } from './lib/history.js';
 import EpisodePicker from './components/EpisodePicker.jsx';
 import EpisodeSidebar from './components/EpisodeSidebar.jsx';
@@ -92,7 +92,7 @@ function Detail() {
 }
 
 function Watch() {
-  useVidNestAllowlist();
+  useVidNestStatus();
   const { animeId, episodeNumber } = useParams();
   const number = Number(episodeNumber ?? 1);
   const [anime, setAnime] = useState(null), [loading, setLoading] = useState(true), [episodes, setEpisodes] = useState([]), [sources, setSources] = useState([]), [sourceId, setSourceId] = useState(''), [error, setError] = useState('');
@@ -129,7 +129,7 @@ function Watch() {
     if (!sourcesLoading && !sourceError && !sources.length && anime?.id === Number(animeId) && validEpisode) clearProgress(animeId, number);
   }, [animeId, number, anime?.id, validEpisode, sourcesLoading, sourceError, sources.length]);
   const checkKey = `${animeId}:${number}`;
-  const canCheckVidNest = Boolean(anime && validEpisode && vidNestProvider.isAllowed(animeId) && (isMovie || (number <= count && vidNestProvider.supportedFormats.includes(anime.format))));
+  const canCheckVidNest = Boolean(anime && validEpisode && vidNestProvider.configured && (isMovie || (number <= count && vidNestProvider.supportedFormats.includes(anime.format))));
   const shouldCheckVidNest = canCheckVidNest && !sourcesLoading && !embedOverride && (playerMode === 'embed' || (playerMode === 'auto' && !source));
   useEffect(() => {
     if (!shouldCheckVidNest) { setVidNestCheck(previous => previous.key === checkKey && previous.pageReachable === null && !previous.checking ? previous : { key: checkKey, checking: false, pageReachable: null }); return; }

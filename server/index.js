@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import express from 'express';
-import { checkVidNestMoviePage, checkVidNestPage, validId } from './vidnest.js';
+import { checkVidNestMoviePage, checkVidNestPage, validId, vidNestEnabled } from './vidnest.js';
 import { matchAniListMovie, MovieLookupError, searchTmdbMovies } from './tmdb.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
-const allowedIds = new Set((process.env.VIDNEST_ALLOWED_ANILIST_IDS ?? process.env.VITE_VIDNEST_ALLOWED_ANILIST_IDS ?? '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0));
-const vidNestConfigured = (process.env.VIDNEST_EMBED_AUTHORIZED ?? process.env.VITE_VIDNEST_EMBED_AUTHORIZED) === 'true' && allowedIds.size > 0;
+const vidNestConfigured = vidNestEnabled();
 const requests = new Map();
 const vidNestChecks = new Map();
 const movieMatches = new Map();
@@ -50,13 +49,13 @@ app.use('/api', (req, res, next) => {
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/providers', (_req, res) => res.json({ providers: [
   { id: 'user-media', name: 'Media pribadi', enabled: true },
-  { id: 'vidnest', name: 'VidNest embed', configured: vidNestConfigured, allowedAnilistIds: vidNestConfigured ? [...allowedIds] : [], pageReachability: 'not-checked', episodeAvailability: 'unknown', playbackVerified: false },
+  { id: 'vidnest', name: 'VidNest embed', configured: vidNestConfigured, pageReachability: 'not-checked', episodeAvailability: 'unknown', playbackVerified: false },
   { id: 'anihub', name: 'AniHub', enabled: false, reason: 'Endpoint dan izin sumber streaming belum terverifikasi.' }
 ] }));
 app.get('/api/providers/vidnest/check', async (req, res) => {
   const { anilistId, episode } = req.query;
   if (!validId(anilistId) || !validId(episode)) return res.status(400).json({ error: 'AniList ID dan episode harus bilangan bulat positif.' });
-  if (!vidNestConfigured || !allowedIds.has(Number(anilistId))) return res.json({ configured: false, pageReachable: null, episodeAvailability: 'unknown', playbackVerified: false });
+  if (!vidNestConfigured) return res.json({ configured: false, pageReachable: null, episodeAvailability: 'unknown', playbackVerified: false });
   const key = `${anilistId}:${episode}`;
   const cached = vidNestChecks.get(key);
   if (cached?.expires > Date.now()) return res.json({ configured: true, ...await cached.value });
@@ -96,7 +95,7 @@ app.get('/api/movies/:anilistId/tmdb', async (req, res) => {
 });
 app.get('/api/providers/vidnest/movie/check', async (req, res) => {
   if (!validId(req.query.anilistId) || !validId(req.query.tmdbId)) return res.status(400).json({ error: 'AniList ID dan TMDB ID harus bilangan bulat positif.' });
-  if (!vidNestConfigured || !allowedIds.has(Number(req.query.anilistId))) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
+  if (!vidNestConfigured) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
   let matched;
   try { matched = await getMovieMatch(req.query.anilistId); }
   catch (error) { return res.status(error instanceof MovieLookupError ? error.status : 502).json({ error: error instanceof MovieLookupError ? error.message : 'Pencocokan film gagal.' }); }
