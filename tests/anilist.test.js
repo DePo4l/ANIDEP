@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { episodeCountOf, episodeNumbers, listAnime } from '../src/services/anilist.js';
+import { episodeCountOf, episodeNeighbors, episodeNumbers, episodeRanges, listAnime, visibleEpisodeNumbers } from '../src/services/anilist.js';
 import { embedCheckReady, vidNestProvider } from '../src/services/embedProviders.js';
 
 test('AniList sends only filters in use and keeps pagination', async () => {
@@ -22,6 +22,24 @@ test('AniList sends only filters in use and keeps pagination', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('episode navigation, ranges, and search use known numbers without claiming streams', () => {
+  const short = episodeNumbers(12);
+  assert.deepEqual(episodeRanges(short), [{ start: 1, end: 12 }]);
+  assert.deepEqual(episodeNeighbors(short, 1), { previous: null, next: 2 });
+  assert.deepEqual(episodeNeighbors(short, 12), { previous: 11, next: null });
+  const long = episodeNumbers(220);
+  assert.deepEqual(episodeRanges(long), [
+    { start: 1, end: 50 }, { start: 51, end: 100 },
+    { start: 101, end: 150 }, { start: 151, end: 200 }, { start: 201, end: 220 }
+  ]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 201).slice(0, 2), [201, 202]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 1, '220'), [220]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 1, '1'), [1]);
+  assert.deepEqual(visibleEpisodeNumbers(long, 1, 'Episode 12'), []);
+  assert.deepEqual(episodeNeighbors(long, 220), { previous: 219, next: null });
+  assert.deepEqual(episodeRanges(episodeNumbers(0)), []);
 });
 
 test('episode metadata and VidNest URLs do not invent movie episodes', () => {

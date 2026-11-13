@@ -26,7 +26,9 @@ npm run preview
 
 [Dokumentasi VidNest](https://vidnest.fun/) menawarkan iframe anime dengan format `https://vidnest.fun/anime/[ANILIST_ID]/[EPISODE]/[SUB_OR_DUB]`. ANIDEP menggunakan format `sub` secara bawaan. Akses gratis dan respons HTTP 200 **tidak membuktikan episode tersedia, dapat diputar, atau berlisensi**. VidNest mengumpulkan konten dari beberapa sumber tanpa pernyataan hak atas setiap episode; gunakan hanya konten yang boleh kamu tonton.
 
-VidNest hanya aktif untuk judul yang kamu izinkan di `.env`: set `VITE_VIDNEST_EMBED_AUTHORIZED=true` dan isi `VITE_VIDNEST_ALLOWED_ANILIST_IDS` dengan AniList ID yang kontennya boleh kamu embed. Jika video pribadi tersedia, ANIDEP memilihnya tanpa menghubungi VidNest. Pemeriksaan otomatis memakai `HEAD` untuk melihat apakah halaman embed terjangkau; pemeriksaan ini **tidak** mendeteksi apakah video dapat diputar. Untuk judul yang diizinkan, tombol VidNest dapat membuka iframe secara manual saat `HEAD` diblokir, tanpa mengklaim video tersedia. Bila halaman gagal, tautan menonton resmi AniList dan video demo publik tetap tersedia. Tidak ada proxy atau ekstraksi URL video. Pilihan Sub/Dub ditunda.
+VidNest hanya aktif untuk judul yang kamu izinkan di `.env`: set `VITE_VIDNEST_EMBED_AUTHORIZED=true` dan isi `VITE_VIDNEST_ALLOWED_ANILIST_IDS` dengan AniList ID yang kontennya boleh kamu embed. Jika video pribadi tersedia, ANIDEP memilihnya tanpa menghubungi VidNest. Pemeriksaan otomatis memakai `HEAD` untuk melihat apakah halaman embed terjangkau; pemeriksaan ini **tidak** mendeteksi apakah video dapat diputar. Untuk anime episodik yang diizinkan, tombol VidNest dapat membuka iframe secara manual saat `HEAD` diblokir, tanpa mengklaim video tersedia. Bila halaman gagal, tautan menonton resmi AniList dan video demo publik tetap tersedia. Tidak ada proxy atau ekstraksi URL video. Pilihan Sub/Dub ditunda.
+
+Di halaman tonton, panel kanan menampilkan daftar nomor episode dari AniList, pencarian, dan rentang 50 episode untuk seri panjang. Nomor ini **bukan daftar episode yang sudah terbukti dapat diputar**; sumber video pribadi yang tersimpan diberi tanda. Film menampilkan informasi dan pilihan menonton resmi tanpa daftar episode buatan. Pengaturan VidNest, demo, dan URL pribadi tetap ada di bagian **Pengaturan pemutar & sumber video** di bawah pemutar.
 
 Film tidak memakai URL `/anime/.../1/...`: dokumentasi VidNest menggunakan TMDB ID untuk film, sedangkan ANIDEP memakai AniList ID. API lokal mencari judul film AniList di TMDB, mencocokkan judul dan tahun, lalu memeriksa halaman `/movie/[TMDB_ID]` sebelum menampilkan iframe. Film yang tidak cocok, token TMDB yang kosong/salah, atau halaman VidNest yang gagal akan menampilkan pesan yang jelas dan tautan streaming resmi AniList bila tersedia. Respons halaman HTTP 200 tidak membuktikan film dapat diputar atau berlisensi.
 
@@ -36,6 +38,8 @@ Film tidak memakai URL `/anime/.../1/...`: dokumentasi VidNest menggunakan TMDB 
 2. Buka bagian **video pribadi (opsional)**, lalu isi nomor episode dan URL langsung ke file `.mp4` atau playlist `.m3u8` yang diizinkan. Subtitle `.vtt` opsional.
 3. Bila sumber pribadi sudah tersimpan untuk episode itu, halaman tonton memilihnya otomatis. Pemutar menggunakan kontrol video bawaan browser, dengan pilihan kecepatan dan kualitas HLS yang muncul bila playlist menyediakannya.
 4. Riwayat, posisi video pribadi, dan URL yang ditambahkan tersimpan di `localStorage` browser ini. Untuk iframe VidNest hanya episode, bahasa, dan waktu membuka halaman yang disimpan; waktu putar di dalam iframe tidak dapat dibaca oleh ANIDEP. Menghapus data situs/browser akan menghapus riwayat.
+
+**Lanjutkan menonton** menampilkan satu kartu per AniList ID dan mengarah ke episode yang paling baru diputar lewat video pribadi atau dibuka lewat iframe, termasuk bila nomor episodenya lebih kecil dari episode sebelumnya. Memilih nomor episode tanpa membuka pemutar tetap tersimpan di riwayat, tetapi tidak mengganti kartu lanjutan. Episode video pribadi yang selesai tidak ditampilkan sebagai tontonan yang perlu dilanjutkan. Riwayat lengkap tersedia melalui **Lihat Semua Riwayat**. Indikator progres hanya muncul untuk video pribadi dengan durasi yang diketahui.
 
 Sumber HLS harus mengizinkan akses CORS dari `http://127.0.0.1:5173` agar dapat diputar lewat hls.js. Aplikasi tidak memproksi video atau melewati pembatasan sumber. Browser dengan dukungan HLS asli dapat memutarnya langsung.
 
@@ -57,6 +61,8 @@ API Express lokal menyediakan `GET /api/health`, `GET /api/providers`, `GET /api
 - `src/components/VidNestPlayer.jsx`: iframe VidNest bersyarat.
 - `src/services/embedProviders.js`: konfigurasi penyedia embed dan validasi URL.
 - `src/components/EpisodePicker.jsx`: pilihan episode.
+- `src/components/EpisodeSidebar.jsx`: daftar episode, pencarian, rentang, dan navigasi halaman tonton.
+- `src/components/ContinueWatching.jsx`: kartu lanjutan yang dikelompokkan per AniList ID.
 - `src/lib/history.js`: penyimpanan riwayat tontonan.
 - `src/App.jsx`: halaman katalog, detail, tonton, dan riwayat.
 - `server/index.js`: API lokal.
