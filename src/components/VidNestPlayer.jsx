@@ -11,8 +11,8 @@ function Frame({ src }) {
   </div>;
 }
 
-export default function VidNestPlayer({ anilistId, episode = 1 }) {
-  const src = vidNestProvider.buildUrl(anilistId, episode);
+export default function VidNestPlayer({ anilistId, episode = 1, tmdbId }) {
+  const src = tmdbId ? vidNestProvider.buildMovieUrl(tmdbId) : vidNestProvider.buildUrl(anilistId, episode);
   if (!src) return <div className="player-empty">ID anime atau nomor episode tidak valid.</div>;
   return <><Frame key={src} src={src} /><p className="embed-note">Halaman embed dapat terbuka meski video tidak tersedia. Jika kosong, pilih sumber pribadi atau tautan resmi. <a href={src} target="_blank" rel="noreferrer">Buka di VidNest</a></p></>;
 }
