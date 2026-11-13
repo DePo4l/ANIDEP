@@ -2,6 +2,10 @@ export function validId(value) {
   return typeof value === 'string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
 }
 
+export function vidNestEnabled(env = process.env) {
+  return (env.VIDNEST_ENABLED ?? env.VIDNEST_EMBED_AUTHORIZED ?? env.VITE_VIDNEST_EMBED_AUTHORIZED) === 'true';
+}
+
 export async function checkVidNestPage(anilistId, episode, request = fetch) {
   const url = `https://vidnest.fun/anime/${anilistId}/${episode}/sub`;
   try {

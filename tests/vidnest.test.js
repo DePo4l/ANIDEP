@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkVidNestPage, validId } from '../server/vidnest.js';
+import { checkVidNestPage, validId, vidNestEnabled } from '../server/vidnest.js';
+
+test('VidNest can be enabled globally without an AniList ID list', () => {
+  assert.equal(vidNestEnabled({ VIDNEST_ENABLED: 'true' }), true);
+  assert.equal(vidNestEnabled({ VIDNEST_ENABLED: 'false', VIDNEST_EMBED_AUTHORIZED: 'true' }), false);
+  assert.equal(vidNestEnabled({ VIDNEST_EMBED_AUTHORIZED: 'true' }), true);
+  assert.equal(vidNestEnabled({}), false);
+});
 
 test('VidNest check reports page reachability without claiming playback', async () => {
   assert.equal(validId('21'), true);
