@@ -34,6 +34,20 @@ export function episodeNumbers(count, available = []) {
   return [...numbers].sort((a, b) => a - b);
 }
 
+export function episodeRanges(numbers, size = 50) {
+  const last = numbers.at(-1) || 0;
+  return [...new Set(numbers.map(number => Math.floor((number - 1) / size) * size + 1))]
+    .map(start => ({ start, end: Math.min(start + size - 1, last) }));
+}
+export function visibleEpisodeNumbers(numbers, start, search = '', size = 50) {
+  const query = search.trim();
+  return numbers.filter(number => query ? String(number).includes(query) : number >= start && number < start + size);
+}
+export function episodeNeighbors(numbers, current) {
+  const index = numbers.indexOf(Number(current));
+  return { previous: index > 0 ? numbers[index - 1] : null, next: index >= 0 ? numbers[index + 1] ?? null : null };
+}
+
 export async function listAnime({ kind = 'trending', search = '', page = 1 } = {}) {
   const now = new Date();
   const season = ['WINTER', 'SPRING', 'SUMMER', 'FALL'][Math.floor(now.getMonth() / 3)];

@@ -1,5 +1,23 @@
 const key = 'anidep:watch-history:v1';
-export function getHistory() { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } }
+export function getHistory() { try { const data = JSON.parse(localStorage.getItem(key) || '{}'); return data && typeof data === 'object' ? data : {}; } catch { return {}; } }
+export function groupContinueWatching(history) {
+  const entries = Object.values(history || {}).filter(item => item && Number.isSafeInteger(Number(item.animeId)) && Number(item.animeId) > 0);
+  entries.sort((a, b) => (Number(b.watchedAt ?? b.lastWatched) || 0) - (Number(a.watchedAt ?? a.lastWatched) || 0));
+  const seen = new Set();
+  return entries.filter(item => {
+    const id = Number(item.animeId);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+export function recordSelection({ animeId, episode, title, cover, format }) {
+  const data = getHistory();
+  const id = animeId + ':' + episode;
+  data[id] = { ...data[id], animeId: Number(animeId), episode: Number(episode), title, cover, format, watchMode: data[id]?.watchMode || 'selection', watchedAt: Date.now() };
+  localStorage.setItem(key, JSON.stringify(data));
+  window.dispatchEvent(new Event('anidep-history'));
+}
 export function recordOpen({ animeId, episode, language, title, cover, format }) {
   const data = getHistory();
   const id = animeId + ':' + episode;
