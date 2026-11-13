@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { checkVidNestMoviePage, checkVidNestPage, validId } from './vidnest.js';
-import { matchAniListMovie, searchTmdbMovies } from './tmdb.js';
+import { matchAniListMovie, MovieLookupError, searchTmdbMovies } from './tmdb.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -11,9 +11,35 @@ const requests = new Map();
 const vidNestChecks = new Map();
 const movieMatches = new Map();
 const tmdbSearches = new Map();
+let lastSweep = 0;
+function cacheSet(map, key, value, ttl) {
+  const now = Date.now();
+  for (const [id, entry] of map) if (entry.expires < now) map.delete(id);
+  if (!map.has(key) && map.size >= 500) map.delete(map.keys().next().value);
+  map.set(key, { value, expires: now + ttl });
+}
+async function getMovieMatch(anilistId) {
+  const cached = movieMatches.get(anilistId);
+  if (cached?.expires > Date.now()) return cached.value;
+  const pending = matchAniListMovie(anilistId, process.env.TMDB_API_READ_ACCESS_TOKEN);
+  cacheSet(movieMatches, anilistId, pending, Infinity);
+  try {
+    const result = await pending;
+    console.info(`[tmdb] AniList ${anilistId} -> ${result.tmdbId || 'no confident match'}`);
+    cacheSet(movieMatches, anilistId, result, 5 * 60_000);
+    return result;
+  } catch (error) { movieMatches.delete(anilistId); throw error; }
+}
 app.disable('x-powered-by');
 app.use('/api', (req, res, next) => {
   const now = Date.now();
+  if (now - lastSweep > 60_000) {
+    for (const [ip, record] of requests) if (record.until < now) requests.delete(ip);
+    for (const [key, record] of vidNestChecks) if (record.expires < now) vidNestChecks.delete(key);
+    for (const [key, record] of movieMatches) if (record.expires < now) movieMatches.delete(key);
+    for (const [key, record] of tmdbSearches) if (record.expires < now) tmdbSearches.delete(key);
+    lastSweep = now;
+  }
   const record = requests.get(req.ip) || { count: 0, until: now + 60_000 };
   if (record.until < now) { record.count = 0; record.until = now + 60_000; }
   record.count++;
@@ -33,12 +59,14 @@ app.get('/api/providers/vidnest/check', async (req, res) => {
   if (!vidNestConfigured || !allowedIds.has(Number(anilistId))) return res.json({ configured: false, pageReachable: null, episodeAvailability: 'unknown', playbackVerified: false });
   const key = `${anilistId}:${episode}`;
   const cached = vidNestChecks.get(key);
-  if (cached?.expires > Date.now()) return res.json({ configured: true, ...cached.value });
+  if (cached?.expires > Date.now()) return res.json({ configured: true, ...await cached.value });
   console.info(`[vidnest] HEAD anime=${anilistId} episode=${episode}`);
-  const value = await checkVidNestPage(anilistId, episode);
+  const pending = checkVidNestPage(anilistId, episode);
+  cacheSet(vidNestChecks, key, pending, Infinity);
+  const value = await pending;
   if (value.error || !value.pageReachable) console.warn(`[vidnest] page check failed anime=${anilistId} episode=${episode} status=${value.httpStatus ?? 'network'} ${value.error || ''}`);
   else console.info(`[vidnest] page reachable anime=${anilistId} episode=${episode} status=${value.httpStatus}; playback unverified`);
-  vidNestChecks.set(key, { value, expires: Date.now() + 60_000 });
+  cacheSet(vidNestChecks, key, value, value.pageReachable ? 60_000 : 10_000);
   res.json({ configured: true, ...value });
 });
 app.get('/api/tmdb/movies/search', async (req, res) => {
@@ -46,40 +74,43 @@ app.get('/api/tmdb/movies/search', async (req, res) => {
     if (!process.env.TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'Token TMDB belum diatur di server.' });
     const key = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const cached = tmdbSearches.get(key);
-    if (cached?.expires > Date.now()) return res.json({ results: cached.value });
-    const results = await searchTmdbMovies(req.query.q, process.env.TMDB_API_READ_ACCESS_TOKEN);
-    tmdbSearches.set(key, { value: results, expires: Date.now() + 5 * 60_000 });
+    if (cached?.expires > Date.now()) return res.json({ results: await cached.value });
+    const pending = searchTmdbMovies(key, process.env.TMDB_API_READ_ACCESS_TOKEN);
+    cacheSet(tmdbSearches, key, pending, Infinity);
+    const results = await pending;
+    cacheSet(tmdbSearches, key, results, 5 * 60_000);
     res.json({ results });
   }
-  catch (error) { console.warn(`[tmdb] search failed: ${error.message}`); res.status(error.status || 502).json({ error: error.message }); }
+  catch (error) { tmdbSearches.delete(typeof req.query.q === 'string' ? req.query.q.trim() : ''); console.warn(`[tmdb] search failed: ${error.message}`); res.status(error instanceof MovieLookupError ? error.status : 502).json({ error: error instanceof MovieLookupError ? error.message : 'Pencarian film gagal.' }); }
 });
 app.get('/api/movies/:anilistId/tmdb', async (req, res) => {
   if (!validId(req.params.anilistId)) return res.status(400).json({ error: 'AniList ID harus bilangan bulat positif.' });
   try {
     if (!process.env.TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'Token TMDB belum diatur di server.' });
-    const cached = movieMatches.get(req.params.anilistId);
-    if (cached?.expires > Date.now()) return res.json(cached.value);
-    const result = await matchAniListMovie(req.params.anilistId, process.env.TMDB_API_READ_ACCESS_TOKEN);
-    console.info(`[tmdb] AniList ${req.params.anilistId} -> ${result.tmdbId || 'no confident match'}`);
-    movieMatches.set(req.params.anilistId, { value: result, expires: Date.now() + 5 * 60_000 });
+    const result = await getMovieMatch(req.params.anilistId);
     res.json(result);
   } catch (error) {
     console.warn(`[tmdb] AniList ${req.params.anilistId} match failed: ${error.message}`);
-    res.status(error.status || 502).json({ error: error.message });
+    res.status(error instanceof MovieLookupError ? error.status : 502).json({ error: error instanceof MovieLookupError ? error.message : 'Pencocokan film gagal.' });
   }
 });
 app.get('/api/providers/vidnest/movie/check', async (req, res) => {
   if (!validId(req.query.anilistId) || !validId(req.query.tmdbId)) return res.status(400).json({ error: 'AniList ID dan TMDB ID harus bilangan bulat positif.' });
-  const matched = movieMatches.get(req.query.anilistId);
-  if (!vidNestConfigured || !allowedIds.has(Number(req.query.anilistId)) || matched?.expires <= Date.now() || matched?.value.tmdbId !== Number(req.query.tmdbId)) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
+  if (!vidNestConfigured || !allowedIds.has(Number(req.query.anilistId))) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
+  let matched;
+  try { matched = await getMovieMatch(req.query.anilistId); }
+  catch (error) { return res.status(error instanceof MovieLookupError ? error.status : 502).json({ error: error instanceof MovieLookupError ? error.message : 'Pencocokan film gagal.' }); }
+  if (matched.tmdbId !== Number(req.query.tmdbId)) return res.json({ configured: false, pageReachable: null, playbackVerified: false });
   const key = `movie:${req.query.tmdbId}`;
   const cached = vidNestChecks.get(key);
-  if (cached?.expires > Date.now()) return res.json({ configured: true, ...cached.value });
+  if (cached?.expires > Date.now()) return res.json({ configured: true, ...await cached.value });
   console.info(`[vidnest] HEAD movie=${req.query.tmdbId}`);
-  const value = await checkVidNestMoviePage(req.query.tmdbId);
+  const pending = checkVidNestMoviePage(req.query.tmdbId);
+  cacheSet(vidNestChecks, key, pending, Infinity);
+  const value = await pending;
   if (value.error || !value.pageReachable) console.warn(`[vidnest] movie page check failed tmdb=${req.query.tmdbId} status=${value.httpStatus ?? 'network'} ${value.error || ''}`);
   else console.info(`[vidnest] movie page reachable tmdb=${req.query.tmdbId}; playback unverified`);
-  vidNestChecks.set(key, { value, expires: Date.now() + 60_000 });
+  cacheSet(vidNestChecks, key, value, value.pageReachable ? 60_000 : 10_000);
   res.json({ configured: true, ...value });
 });
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));

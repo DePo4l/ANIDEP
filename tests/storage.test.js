@@ -31,3 +31,10 @@ test('history saves progress and completes only near the end', () => {
   removeHistory(42, 1);
   assert.equal(getHistory()['42:1'], undefined);
 });
+
+test('watch page history writes do not crash when browser storage is blocked', () => {
+  const original = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => null, setItem: () => { throw new Error('blocked'); } };
+  try { assert.doesNotThrow(() => recordOpen({ animeId: 21, episode: 1, title: 'One Piece' })); }
+  finally { globalThis.localStorage = original; }
+});
