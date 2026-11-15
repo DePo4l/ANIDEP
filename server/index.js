@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { checkVidNestMoviePage, checkVidNestPage, validId, vidNestEnabled } from './vidnest.js';
 import { matchAniListMovie, MovieLookupError, searchTmdbMovies } from './tmdb.js';
 
@@ -113,6 +115,9 @@ app.get('/api/providers/vidnest/movie/check', async (req, res) => {
   res.json({ configured: true, ...value });
 });
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));
-const server = app.listen(port, '127.0.0.1');
-server.on('listening', () => console.log(`ANIDEP API: http://127.0.0.1:${port}`));
-server.on('error', error => { console.error(`ANIDEP API gagal dijalankan: ${error.message}`); process.exitCode = 1; });
+export default app;
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const server = app.listen(port, '127.0.0.1');
+  server.on('listening', () => console.log(`ANIDEP API: http://127.0.0.1:${port}`));
+  server.on('error', error => { console.error(`ANIDEP API gagal dijalankan: ${error.message}`); process.exitCode = 1; });
+}
