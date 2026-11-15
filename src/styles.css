@@ -48,6 +48,10 @@
 @media(max-width:650px){.spotlight{grid-template-columns:1fr;height:auto;margin:18px 0 45px}.spotlight-copy{min-height:460px;padding:24px 24px 18px}.spotlight-story{padding:29px 0 26px}.spotlight h1{font-size:clamp(4.3rem,15vw,6.7rem)}.spotlight h1.spotlight-title-medium{font-size:clamp(3.5rem,12vw,5.4rem)}.spotlight h1.spotlight-title-long{font-size:clamp(2.8rem,9vw,4.1rem)}.spotlight-synopsis{font-size:.85rem;-webkit-line-clamp:2;line-clamp:2}.spotlight-art{min-height:280px}.spotlight-art:before{background:linear-gradient(0deg,#1b172288,transparent 35%)}.spotlight-poster{height:110%;right:18%;max-width:70%}.spotlight-art-number{font-size:12rem}.spotlight-controls{bottom:35px;right:15px}.spotlight-art-label{top:17px;bottom:auto;left:20px;right:auto}.spotlight-pagination{bottom:7px}}
 @media(max-width:400px){.spotlight-copy{min-height:440px;padding-inline:19px}.spotlight h1{font-size:clamp(3.7rem,14vw,5.3rem)}.spotlight h1.spotlight-title-medium{font-size:clamp(3rem,11vw,4.4rem)}.spotlight h1.spotlight-title-long{font-size:clamp(2.5rem,8.5vw,3.5rem)}.spotlight-actions a{gap:10px;padding-inline:11px}.spotlight-art{min-height:240px}.spotlight-art-label{font-size:.5rem}}
 @media(prefers-reduced-motion:reduce){.spotlight-copy,.spotlight-art{animation:none}.spotlight-actions a,.spotlight-controls button,.spotlight-pagination span{transition:none}}
-.home>.spotlight{width:calc(100vw - 24px);left:50%;transform:translateX(-50%);margin:18px 0 56px;border-radius:18px;box-shadow:none;grid-template-columns:44% 56%}
+.home>.spotlight{width:100%;margin:0 0 56px;border-radius:0 0 18px 18px;box-shadow:none;grid-template-columns:44% 56%}
 @media(max-width:900px){.home>.spotlight{grid-template-columns:50% 50%}}
-@media(max-width:650px){.home>.spotlight{width:calc(100vw - 16px);grid-template-columns:1fr;margin:10px 0 42px;border-radius:14px}}
+@media(max-width:650px){.home>.spotlight{grid-template-columns:1fr;margin:0 0 42px;border-radius:0 0 14px 14px}}
+.home .continue-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.home .continue-card img{flex:none}
+@media(max-width:1000px){.home .continue-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.home .continue-grid{grid-template-columns:minmax(0,1fr)}}
