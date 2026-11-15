@@ -1,6 +1,7 @@
 const endpoint = 'https://graphql.anilist.co';
 const cache = new Map();
 const cardFields = 'id title { romaji english } coverImage { large } format episodes averageScore status season seasonYear';
+const spotlightFields = 'id title { english romaji native } bannerImage coverImage { extraLarge large } description(asHtml: false) genres averageScore format episodes status season seasonYear nextAiringEpisode { episode }';
 
 async function query(document, variables = {}) {
   const key = JSON.stringify([document, variables]);
@@ -48,13 +49,28 @@ export function episodeNeighbors(numbers, current) {
   return { previous: index > 0 ? numbers[index - 1] : null, next: index >= 0 ? numbers[index + 1] ?? null : null };
 }
 
-export async function listAnime({ kind = 'trending', search = '', page = 1 } = {}) {
+function currentSeason() {
   const now = new Date();
-  const season = ['WINTER', 'SPRING', 'SUMMER', 'FALL'][Math.floor(now.getMonth() / 3)];
+  return { season: ['WINTER', 'SPRING', 'SUMMER', 'FALL'][Math.floor(now.getMonth() / 3)], year: now.getFullYear() };
+}
+
+export async function listSpotlightAnime() {
+  const data = await query(`query ($season: MediaSeason, $year: Int) {
+    seasonal: Page(page: 1, perPage: 4) { media(type: ANIME, isAdult: false, season: $season, seasonYear: $year, sort: TRENDING_DESC) { ${spotlightFields} } }
+    popular: Page(page: 1, perPage: 6) { media(type: ANIME, isAdult: false, sort: POPULARITY_DESC) { ${spotlightFields} } }
+  }`, currentSeason());
+  const seen = new Set();
+  return [...(data.seasonal?.media || []).map(anime => ({ ...anime, spotlightCategory: 'MUSIM INI' })),
+    ...(data.popular?.media || []).map(anime => ({ ...anime, spotlightCategory: 'POPULER' }))]
+    .filter(anime => anime?.id && !seen.has(anime.id) && seen.add(anime.id)).slice(0, 6);
+}
+
+export async function listAnime({ kind = 'trending', search = '', page = 1 } = {}) {
+  const { season, year } = currentSeason();
   const sort = kind === 'popular' ? 'POPULARITY_DESC' : 'TRENDING_DESC';
   const seasonal = kind === 'seasonal' && !search;
   const document = `query ($page: Int${search ? ', $search: String' : ''}${seasonal ? ', $season: MediaSeason, $year: Int' : ''}) { Page(page: $page, perPage: 24) { pageInfo { hasNextPage } media(type: ANIME, isAdult: false, sort: ${sort}${search ? ', search: $search' : ''}${seasonal ? ', season: $season, seasonYear: $year' : ''}) { ${cardFields} } } }`;
-  const data = await query(document, { page: Math.max(1, page), ...(search ? { search } : {}), ...(seasonal ? { season, year: now.getFullYear() } : {}) });
+  const data = await query(document, { page: Math.max(1, page), ...(search ? { search } : {}), ...(seasonal ? { season, year } : {}) });
   return { items: data.Page.media, hasMore: data.Page.pageInfo.hasNextPage };
 }
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { episodeCountOf, episodeNeighbors, episodeNumbers, episodeRanges, listAnime, visibleEpisodeNumbers } from '../src/services/anilist.js';
+import { episodeCountOf, episodeNeighbors, episodeNumbers, episodeRanges, listAnime, listSpotlightAnime, visibleEpisodeNumbers } from '../src/services/anilist.js';
 import { embedCheckReady, vidNestProvider } from '../src/services/embedProviders.js';
 
 test('AniList sends only filters in use and keeps pagination', async () => {
@@ -22,6 +22,27 @@ test('AniList sends only filters in use and keeps pagination', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('spotlight combines current-season trending and popular anime without duplicates', async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (_url, options) => {
+    request = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ data: {
+      seasonal: { media: [{ id: 1 }, { id: 2 }] },
+      popular: { media: [{ id: 2 }, { id: 3 }] }
+    } }) };
+  };
+  try {
+    const slides = await listSpotlightAnime();
+    assert.deepEqual(slides.map(item => item.id), [1, 2, 3]);
+    assert.deepEqual(slides.map(item => item.spotlightCategory), ['MUSIM INI', 'MUSIM INI', 'POPULER']);
+    assert.match(request.query, /bannerImage coverImage \{ extraLarge large \}/);
+    assert.match(request.query, /sort: TRENDING_DESC/);
+    assert.match(request.query, /sort: POPULARITY_DESC/);
+    assert.ok(['WINTER', 'SPRING', 'SUMMER', 'FALL'].includes(request.variables.season));
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test('episode navigation, ranges, and search use known numbers without claiming streams', () => {
