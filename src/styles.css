@@ -23,7 +23,7 @@
 .spotlight-copy{position:relative;z-index:2;display:flex;flex-direction:column;min-width:0;padding:35px clamp(26px,4.2vw,60px) 27px;animation:spotlight-enter .65s both}
 .spotlight-overline,.spotlight-index,.spotlight-bottom,.spotlight-art-label{font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 .spotlight-overline{display:flex;align-items:center;gap:9px;white-space:nowrap}.spotlight-mark{color:#886cb8;font-size:1.15rem}.spotlight-edition{margin-left:auto;color:#77717a}
-.spotlight-story{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;flex:1;padding:34px 0 32px;min-width:0}
+.spotlight-story{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;flex:1;padding:20px 0;min-width:0}
 .spotlight-index{color:#816aa1}.spotlight h1{max-width:100%;margin:12px 0 10px;font:900 clamp(4.2rem,7.6vw,8.4rem)/.79 'Barlow Condensed',Impact,sans-serif;letter-spacing:-.052em;text-transform:uppercase;overflow-wrap:anywhere;text-wrap:balance}
 .spotlight h1.spotlight-title-medium{font-size:clamp(3.4rem,6.3vw,6.9rem)}.spotlight h1.spotlight-title-long{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;overflow:hidden;font-size:clamp(2.7rem,4.1vw,4.6rem);line-height:.88}
 .spotlight-native{max-width:100%;margin:11px 0 0;font-size:.95rem;font-weight:700;color:#716977;overflow-wrap:anywhere}
@@ -48,3 +48,6 @@
 @media(max-width:650px){.spotlight{grid-template-columns:1fr;height:auto;margin:18px 0 45px}.spotlight-copy{min-height:460px;padding:24px 24px 18px}.spotlight-story{padding:29px 0 26px}.spotlight h1{font-size:clamp(4.3rem,15vw,6.7rem)}.spotlight h1.spotlight-title-medium{font-size:clamp(3.5rem,12vw,5.4rem)}.spotlight h1.spotlight-title-long{font-size:clamp(2.8rem,9vw,4.1rem)}.spotlight-synopsis{font-size:.85rem;-webkit-line-clamp:2;line-clamp:2}.spotlight-art{min-height:280px}.spotlight-art:before{background:linear-gradient(0deg,#1b172288,transparent 35%)}.spotlight-poster{height:110%;right:18%;max-width:70%}.spotlight-art-number{font-size:12rem}.spotlight-controls{bottom:35px;right:15px}.spotlight-art-label{top:17px;bottom:auto;left:20px;right:auto}.spotlight-pagination{bottom:7px}}
 @media(max-width:400px){.spotlight-copy{min-height:440px;padding-inline:19px}.spotlight h1{font-size:clamp(3.7rem,14vw,5.3rem)}.spotlight h1.spotlight-title-medium{font-size:clamp(3rem,11vw,4.4rem)}.spotlight h1.spotlight-title-long{font-size:clamp(2.5rem,8.5vw,3.5rem)}.spotlight-actions a{gap:10px;padding-inline:11px}.spotlight-art{min-height:240px}.spotlight-art-label{font-size:.5rem}}
 @media(prefers-reduced-motion:reduce){.spotlight-copy,.spotlight-art{animation:none}.spotlight-actions a,.spotlight-controls button,.spotlight-pagination span{transition:none}}
+.home>.spotlight{width:calc(100vw - 24px);left:50%;transform:translateX(-50%);margin:18px 0 56px;border-radius:18px;box-shadow:none;grid-template-columns:44% 56%}
+@media(max-width:900px){.home>.spotlight{grid-template-columns:50% 50%}}
+@media(max-width:650px){.home>.spotlight{width:calc(100vw - 16px);grid-template-columns:1fr;margin:10px 0 42px;border-radius:14px}}
