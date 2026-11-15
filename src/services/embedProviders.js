@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 
-let configured = false;
+let status = 'loading';
 let loadPromise = null;
-function loadProviderStatus() {
+export function loadProviderStatus() {
   loadPromise ||= fetch('/api/providers')
-    .then(response => response.ok ? response.json() : Promise.reject(new Error('providers')))
+    .then(response => response.ok && response.headers.get('content-type')?.includes('application/json') ? response.json() : Promise.reject(new Error('providers')))
     .then(data => {
-      configured = data.providers?.find(provider => provider.id === 'vidnest')?.configured === true;
+      const provider = data.providers?.find(item => item.id === 'vidnest');
+      if (typeof provider?.configured !== 'boolean') throw new Error('providers');
+      status = provider.configured ? 'enabled' : 'disabled';
     })
-    .catch(() => { loadPromise = null; });
+    .catch(() => { status = 'error'; loadPromise = null; });
   return loadPromise;
 }
 export function useVidNestStatus() {
@@ -19,9 +21,9 @@ export function useVidNestStatus() {
 export const vidNestProvider = {
   id: 'vidnest',
   name: 'VidNest',
-  get configured() { return configured; },
+  get configured() { return status === 'enabled'; },
   supportedFormats: ['TV', 'OVA', 'ONA', 'SPECIAL', 'MOVIE'],
-  unavailableReason: 'VidNest belum aktif. Aktifkan VIDNEST_ENABLED=true di .env server untuk mencoba embed; ketersediaan video tidak dijamin.',
+  get unavailableReason() { return status === 'error' ? 'API ANIDEP tidak mengembalikan JSON. Periksa endpoint /api/providers pada deployment.' : status === 'loading' ? 'Memeriksa konfigurasi penyedia video…' : 'VidNest belum aktif. Atur VIDNEST_ENABLED=true pada lingkungan server; ketersediaan video tidak dijamin.'; },
   // A reachable embed page does not establish that an episode exists or can play.
   buildUrl(anilistId, episode) {
     const id = Number(anilistId);
