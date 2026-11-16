@@ -2,7 +2,7 @@
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { episodeCountOf, episodeNumbers, getAnime, getRecommendations, listAnime, synopsisOf, titleOf } from './services/anilist.js';
 import { addMedia, removeMedia, userMediaProvider } from './services/providers.js';
-import { embedCheckReady, useVidNestStatus, vidNestProvider } from './services/embedProviders.js';
+import { embedCheckReady, providerUnavailableReason, useVidNestStatus, vidNestProvider } from './services/embedProviders.js';
 import { clearProgress, getHistory, groupContinueWatching, historyActivity, recordOpen, recordSelection, removeHistory, saveProgress } from './lib/history.js';
 import EpisodePicker from './components/EpisodePicker.jsx';
 import EpisodeSidebar from './components/EpisodeSidebar.jsx';
@@ -95,9 +95,9 @@ function Detail() {
 }
 
 function Watch() {
-  useVidNestStatus();
   const { animeId, episodeNumber } = useParams();
   const number = Number(episodeNumber ?? 1);
+  const providerStatus = useVidNestStatus(`${animeId}:${number}`);
   const [anime, setAnime] = useState(null), [loading, setLoading] = useState(true), [episodes, setEpisodes] = useState([]), [sources, setSources] = useState([]), [sourceId, setSourceId] = useState(''), [error, setError] = useState('');
   const [playerMode, setPlayerMode] = useState('auto');
   const [embedOverride, setEmbedOverride] = useState(false);
@@ -124,6 +124,7 @@ function Watch() {
   const count = episodeCountOf(anime);
   const numbers = episodeNumbers(count, episodes);
   const validEpisode = isMovie ? number === 1 : numbers.includes(number);
+  const formatSupported = vidNestProvider.supportedFormats.includes(anime?.format);
   useEffect(() => {
     if (anime?.id === Number(animeId) && validEpisode) recordSelection({ animeId, episode: number, title: titleOf(anime), cover: anime.coverImage?.large, format: anime.format });
   }, [animeId, number, anime?.id, validEpisode]);
@@ -132,7 +133,7 @@ function Watch() {
     if (!sourcesLoading && !sourceError && !sources.length && anime?.id === Number(animeId) && validEpisode) clearProgress(animeId, number);
   }, [animeId, number, anime?.id, validEpisode, sourcesLoading, sourceError, sources.length]);
   const checkKey = `${animeId}:${number}`;
-  const canCheckVidNest = Boolean(anime && validEpisode && vidNestProvider.configured && (isMovie || (number <= count && vidNestProvider.supportedFormats.includes(anime.format))));
+  const canCheckVidNest = Boolean(anime && validEpisode && providerStatus === 'enabled' && formatSupported && (isMovie || number <= count));
   const shouldCheckVidNest = canCheckVidNest && !sourcesLoading && !embedOverride && (playerMode === 'embed' || (playerMode === 'auto' && !source));
   useEffect(() => {
     if (!shouldCheckVidNest) { setVidNestCheck(previous => previous.key === checkKey && previous.pageReachable === null && !previous.checking ? previous : { key: checkKey, checking: false, pageReachable: null }); return; }
@@ -168,7 +169,15 @@ function Watch() {
   const historyData = getHistory();
   const history = historyData[animeId + ':' + number];
   const recent = groupContinueWatching(historyData).filter(item => Number(item.animeId) !== Number(animeId)).slice(0, 4);
-  const emptyMessage = sourceError || (!validEpisode ? 'Nomor episode ini belum tercantum di AniList atau sumber pribadi.' : !canCheckVidNest ? vidNestProvider.unavailableReason : currentCheck && vidNestCheck.matchReason ? vidNestCheck.matchReason : currentCheck && vidNestCheck.error ? `VidNest tidak dapat diperiksa: ${vidNestCheck.error}` : currentCheck && vidNestCheck.httpStatus ? `Halaman VidNest merespons HTTP ${vidNestCheck.httpStatus}. Video ${isMovie ? 'film' : 'episode'} ini belum tersedia di ANIDEP.` : 'Belum ada sumber video yang dapat diputar untuk judul ini.');
+  const emptyMessage = sourceError || (!validEpisode ? 'Nomor episode ini belum tercantum di AniList atau sumber pribadi.'
+    : providerStatus !== 'enabled' ? providerUnavailableReason(providerStatus)
+    : !formatSupported ? `Format ${anime.format || 'anime ini'} belum didukung oleh pemutar VidNest ANIDEP.`
+    : currentCheck && vidNestCheck.configured === false ? 'VidNest dinonaktifkan di server. Muat ulang halaman.'
+    : currentCheck && vidNestCheck.matchReason ? vidNestCheck.matchReason
+    : currentCheck && vidNestCheck.error ? `VidNest tidak dapat diperiksa: ${vidNestCheck.error}`
+    : currentCheck && vidNestCheck.httpStatus === 404 ? 'Halaman VidNest untuk episode ini tidak ditemukan (HTTP 404).'
+    : currentCheck && vidNestCheck.httpStatus ? `Pemeriksaan VidNest merespons HTTP ${vidNestCheck.httpStatus}. Ketersediaan ${isMovie ? 'film' : 'episode'} belum diketahui.`
+    : 'Belum ada sumber video yang dapat diputar untuk judul ini.');
   return <main className="container page"><Link className="back" to={`/anime/${animeId}`}>← Detail anime</Link><div className="watch-layout"><div>
     {mode === 'manual' && source ? <VideoPlayer key={animeId + ':' + number + ':' + sourceId} source={source} resumeAt={history?.position || 0} onProgress={(position, duration, completed) => saveProgress({ animeId, episode: number, position, duration, completed, title: titleOf(anime), cover: anime.coverImage?.large, format: anime.format })} /> : mode === 'embed' && (embedReady || forceEmbed) ? <VidNestPlayer anilistId={animeId} episode={number} tmdbId={isMovie ? vidNestCheck.tmdbId : null} /> : mode === 'demo' ? <><VideoPlayer source={demoSource} /><p className="embed-note">Ini video uji publik, bukan episode {titleOf(anime)}.</p></> : <div className="player-empty">{mode === 'loading' ? isMovie ? 'Mencari film di TMDB dan memeriksa VidNest…' : 'Memeriksa halaman VidNest…' : emptyMessage}</div>}
     <div className="watch-title"><img className="watch-cover" src={anime.coverImage?.large} alt="" /><div><span className="eyebrow">SEDANG DITONTON</span><h1>{titleOf(anime)}</h1><p>{isMovie ? 'Film' : `Episode ${number}`} {anime.duration ? '· ' + anime.duration + ' menit' : ''}</p></div></div>

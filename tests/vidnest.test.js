@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { checkVidNestPage, validId, vidNestEnabled } from '../server/vidnest.js';
-import { loadProviderStatus, vidNestProvider } from '../src/services/embedProviders.js';
+import { loadProviderStatus, providerUnavailableReason, vidNestProvider } from '../src/services/embedProviders.js';
 
 test('VidNest can be enabled globally without an AniList ID list', () => {
   assert.equal(vidNestEnabled({ VIDNEST_ENABLED: 'true' }), true);
@@ -14,6 +14,8 @@ test('VidNest can be enabled globally without an AniList ID list', () => {
 });
 
 test('VidNest check reports page reachability without claiming playback', async () => {
+  assert.equal(vidNestProvider.supportedFormats.includes('TV_SHORT'), true);
+  assert.equal(vidNestProvider.buildUrl(10216, 1), 'https://vidnest.fun/anime/10216/1/sub');
   assert.equal(validId('21'), true);
   assert.equal(validId('0'), false);
   assert.equal(validId('1.5'), false);
@@ -70,5 +72,24 @@ test('HTML from /api/providers is reported as an API failure', async () => {
     globalThis.fetch = async () => ({ ok: true, headers: new Headers({ 'content-type': 'application/json' }), json: async () => ({ providers: [{ id: 'vidnest', configured: true }] }) });
     await loadProviderStatus();
     assert.equal(vidNestProvider.configured, true);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('provider status is fetched again and disabled state has its own message', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  try {
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, cache: options.cache });
+      return { ok: true, headers: new Headers({ 'content-type': 'application/json' }), json: async () => ({ providers: [{ id: 'vidnest', configured: calls.length === 2 }] }) };
+    };
+    assert.equal(await loadProviderStatus(), 'disabled');
+    assert.match(providerUnavailableReason('disabled'), /belum aktif/);
+    assert.equal(await loadProviderStatus(), 'enabled');
+    assert.equal(vidNestProvider.configured, true);
+    assert.deepEqual(calls, [
+      { url: '/api/providers', cache: 'no-store' },
+      { url: '/api/providers', cache: 'no-store' }
+    ]);
   } finally { globalThis.fetch = originalFetch; }
 });
