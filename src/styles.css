@@ -55,3 +55,82 @@
 .home .continue-card img{flex:none}
 @media(max-width:1000px){.home .continue-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.home .continue-grid{grid-template-columns:minmax(0,1fr)}}
+.nav-inner .search-wrap{margin-left:auto;width:min(350px,34vw);min-width:0}
+.nav-inner .search-wrap input{min-width:0}
+#discover{scroll-margin-top:100px}
+@media(max-width:700px){.nav-inner{height:auto;min-height:78px;flex-wrap:wrap;gap:12px;padding-block:12px}.nav-inner nav{margin-left:auto}.nav-inner .search-wrap{order:3;width:100%;margin:0}#discover{scroll-margin-top:150px}}
+
+/* Homepage editorial layout and card rhythm */
+.home>.spotlight{
+  grid-template-columns:minmax(0,46fr) minmax(0,54fr);
+  column-gap:clamp(24px,2vw,32px);
+  height:auto;
+  min-height:clamp(640px,53vw,700px);
+  border-radius:0 0 8px 8px;
+}
+.spotlight-copy{
+  padding-right:clamp(24px,2vw,32px);
+  padding-left:clamp(26px,3vw,48px);
+}
+.spotlight h1{margin:14px 0 12px;line-height:1.1}
+.spotlight h1.spotlight-title-long{line-height:1.1}
+.spotlight-native{margin-top:14px}
+.spotlight-synopsis{
+  max-width:46ch;
+  margin-top:20px;
+  line-height:1.7;
+  -webkit-line-clamp:4;
+  line-clamp:4;
+}
+.spotlight-meta{margin-top:24px}
+.spotlight-actions{margin-top:24px}
+.spotlight-actions a:hover,.spotlight-actions a:focus-visible{transform:translateY(-2px)}
+.spotlight-art{margin-left:calc(-1 * clamp(24px,2vw,32px))}
+.spotlight-art:before{
+  background:linear-gradient(90deg,#ece9e1 0%,#ece9e1aa 6%,transparent 27%),linear-gradient(0deg,#1b172288,transparent 30%);
+}
+.spotlight-poster{left:-2%;right:auto;bottom:-7%;height:112%;max-width:95%}
+.spotlight-fallback p{line-height:1.7}
+
+.anime-card{display:flex;flex-direction:column;border-radius:10px}
+.anime-card:hover,.anime-card:focus-visible{transform:translateY(-2px)}
+.anime-card .poster{flex:none}
+.card-info{display:flex;flex:1;flex-direction:column;gap:8px;padding:14px 14px 16px}
+.card-kicker{line-height:1.4}
+.card-info h3{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  overflow-wrap:anywhere;
+  min-height:2.8em;
+  margin:0;
+  line-height:1.4;
+}
+.card-info p{margin-top:auto;line-height:1.7}
+.home .section-heading p{line-height:1.7}
+
+.spotlight,.detail-poster,.side-panel,.player-shell,.player-empty,.manual-details,.notice{border-radius:8px}
+.spotlight-controls{border-radius:8px}
+.spotlight-controls button{border-radius:6px}
+.button,.load-more,.filters button,.spotlight-actions a,.spotlight-fallback button,.watch-nav button,.episode-nav button,.history-item button{border-radius:8px}
+.episode-chip{border-radius:6px}
+.search-wrap{border-radius:8px}
+.continue-card,.history-item{border-radius:10px}
+
+@media(max-width:900px){
+  .home>.spotlight{grid-template-columns:minmax(0,46fr) minmax(0,54fr)}
+  .spotlight-copy{padding-left:28px;padding-right:20px}
+  .spotlight-poster{left:-6%;right:auto;max-width:105%}
+}
+@media(max-width:650px){
+  .home>.spotlight{grid-template-columns:1fr;column-gap:0}
+  .spotlight-copy{padding:24px 24px 18px}
+  .spotlight-art{margin-left:0}
+  .spotlight-poster{left:12%;right:auto;max-width:76%}
+  .spotlight-synopsis{-webkit-line-clamp:3;line-clamp:3;line-height:1.7}
+}
+@media(max-width:700px){
+  .card-info{padding:11px 11px 14px}
+}

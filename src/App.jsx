@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { episodeCountOf, episodeNumbers, getAnime, getRecommendations, listAnime, synopsisOf, titleOf } from './services/anilist.js';
 import { addMedia, removeMedia, userMediaProvider } from './services/providers.js';
 import { embedCheckReady, useVidNestStatus, vidNestProvider } from './services/embedProviders.js';
@@ -11,17 +11,18 @@ import VideoPlayer from './components/VideoPlayer.jsx';
 import VidNestPlayer from './components/VidNestPlayer.jsx';
 import SpotlightCarousel from './components/SpotlightCarousel.jsx';
 
-function Shell({ children }) {
-  return <><header className="header"><div className="container nav-inner"><Link className="brand" to="/">ANI<span>DEP</span><small>your anime space</small></Link><nav><NavLink to="/">Jelajahi</NavLink><NavLink to="/history">Riwayat</NavLink></nav><span className="nav-pill">✦ Tonton dengan caramu</span></div></header>{children}<footer className="container">ANIDEP · Data anime dari <a href="https://anilist.co" target="_blank" rel="noreferrer">AniList</a>. Video hanya dari sumber yang diizinkan.</footer></>;
+function Shell({ children, input, setInput }) {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  return <><header className="header"><div className="container nav-inner"><Link className="brand" to="/">ANI<span>DEP</span><small>your anime space</small></Link><nav><NavLink to="/">Jelajahi</NavLink><NavLink to="/history">Riwayat</NavLink></nav><div className="search-wrap"><span aria-hidden="true">⌕</span><input type="search" aria-label="Cari anime" value={input} onChange={event => { setInput(event.target.value); if (pathname !== '/') navigate('/'); }} placeholder="Cari judul anime..." /></div></div></header>{children}<footer className="container">ANIDEP · Data anime dari <a href="https://anilist.co" target="_blank" rel="noreferrer">AniList</a>. Video hanya dari sumber yang diizinkan.</footer></>;
 }
 function AnimeCard({ anime }) { return <Link className="anime-card" to={`/anime/${anime.id}`}><div className="poster"><img src={anime.coverImage?.large} alt={`Poster ${titleOf(anime)}`} loading="lazy" /><span className="score">★ {anime.averageScore ? (anime.averageScore / 10).toFixed(1) : '—'}</span></div><div className="card-info"><span className="card-kicker">{anime.format || 'ANIME'} · {anime.seasonYear || '—'}</span><h3>{titleOf(anime)}</h3><p>{anime.episodes ? anime.episodes + ' episode' : 'Jumlah episode belum ada'} · {anime.status || 'Status belum ada'}</p></div></Link>; }
 function Grid({ items }) { return <div className="anime-grid">{items.map(anime => <AnimeCard anime={anime} key={anime.id} />)}</div>; }
 function Notice({ children, retry }) { return <div className="notice" role="status">{children}{retry && <button onClick={retry}>Coba lagi</button>}</div>; }
 const demoSource = { id: 'mux-demo', label: 'Video demo HLS', type: 'hls', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' };
 
-function Home() {
+function Home({ input }) {
   const [kind, setKind] = useState('trending');
-  const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
@@ -31,12 +32,13 @@ function Home() {
   const [history, setHistory] = useState([]);
   const [retry, setRetry] = useState(0);
   useEffect(() => { const timer = setTimeout(() => { setSearch(input.trim()); setPage(1); }, 350); return () => clearTimeout(timer); }, [input]);
+  useEffect(() => { if (input.trim()) document.getElementById('discover')?.scrollIntoView({ behavior: 'smooth' }); }, [input]);
   useEffect(() => { const update = () => setHistory(groupContinueWatching(getHistory()).slice(0, 4)); update(); window.addEventListener('anidep-history', update); return () => window.removeEventListener('anidep-history', update); }, []);
   useEffect(() => { let active = true; setLoading(true); setError(''); listAnime({ kind, search, page }).then(result => { if (!active) return; setItems(previous => page === 1 ? result.items : [...previous, ...result.items]); setHasMore(result.hasMore); }).catch(err => { if (active) setError(err.message); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [kind, search, page, retry]);
   const changeKind = value => { setKind(value); setPage(1); setItems([]); };
   return <main className="home"><SpotlightCarousel /><div className="container">
     <ContinueWatching items={history} />
-    <section id="discover" className="catalog"><div className="section-heading"><div><span className="eyebrow">PILIHAN UNTUKMU</span><h2>Jelajahi anime</h2><p>Temukan seri, film, dan musim terbaru.</p></div><div className="search-wrap"><span>⌕</span><input aria-label="Cari anime" value={input} onChange={event => setInput(event.target.value)} placeholder="Cari judul anime..." /></div></div><div className="filters" role="group" aria-label="Jenis katalog">{[['trending', 'Trending'], ['popular', 'Populer'], ['seasonal', 'Musim ini']].map(([value, label]) => <button className={kind === value ? 'active' : ''} onClick={() => changeKind(value)} key={value}>{label}</button>)}</div>
+    <section id="discover" className="catalog"><div className="section-heading"><div><span className="eyebrow">PILIHAN UNTUKMU</span><h2>Jelajahi anime</h2><p>Temukan seri, film, dan musim terbaru.</p></div></div><div className="filters" role="group" aria-label="Jenis katalog">{[['trending', 'Trending'], ['popular', 'Populer'], ['seasonal', 'Musim ini']].map(([value, label]) => <button className={kind === value ? 'active' : ''} onClick={() => changeKind(value)} key={value}>{label}</button>)}</div>
       {error && <Notice retry={() => setRetry(value => value + 1)}>{error}</Notice>}{!error && items.length > 0 && <Grid items={items} />}{loading && <Notice>Memuat anime…</Notice>}{!loading && !error && !items.length && <Notice>Tidak ada anime yang ditemukan.</Notice>}{hasMore && !loading && !error && <button className="button load-more" onClick={() => setPage(value => value + 1)}>Muat lebih banyak ↓</button>}</section></div></main>;
 }
 
@@ -189,4 +191,4 @@ function History() {
   useEffect(() => { refresh(); window.addEventListener('anidep-history', refresh); return () => window.removeEventListener('anidep-history', refresh); }, []);
   return <main className="container page"><span className="eyebrow">JEJAK TONTONANMU</span><h1 className="page-title">Riwayat menonton</h1>{items.length ? <div className="history-list">{items.map(item => <div className="history-item" key={item.animeId + ':' + item.episode}><img src={item.cover} alt="" /><div><Link to={item.format === 'MOVIE' ? `/watch/${item.animeId}` : `/watch/${item.animeId}/${item.episode}`}><h3>{item.title}</h3></Link><p>{item.format === 'MOVIE' ? 'Film' : `Episode ${item.episode}`} · {item.watchMode === 'embed' ? 'Terakhir dibuka' : item.completed ? 'Selesai' : item.watchMode === 'manual' && Number(item.duration) > 0 ? 'Lanjutkan dari ' + Math.floor((Number(item.position) || 0) / 60) + ' menit' : 'Terakhir dipilih'}</p>{item.watchMode === 'manual' && Number(item.duration) > 0 && <progress value={item.position} max={item.duration} />}</div><button onClick={() => removeHistory(item.animeId, item.episode)} aria-label={`Hapus riwayat ${item.title} episode ${item.episode}`}>Hapus</button></div>)}</div> : <Notice>Belum ada riwayat menonton. Mulai dari katalog anime.</Notice>}</main>;
 }
-export default function App() { return <Shell><Routes><Route path="/" element={<Home />} /><Route path="/anime/:animeId" element={<Detail />} /><Route path="/watch/:animeId" element={<Watch />} /><Route path="/watch/:animeId/:episodeNumber" element={<Watch />} /><Route path="/history" element={<History />} /><Route path="*" element={<main className="container page"><Notice>Halaman tidak ditemukan.</Notice></main>} /></Routes></Shell>; }
+export default function App() { const [input, setInput] = useState(''); return <Shell input={input} setInput={setInput}><Routes><Route path="/" element={<Home input={input} />} /><Route path="/anime/:animeId" element={<Detail />} /><Route path="/watch/:animeId" element={<Watch />} /><Route path="/watch/:animeId/:episodeNumber" element={<Watch />} /><Route path="/history" element={<History />} /><Route path="*" element={<main className="container page"><Notice>Halaman tidak ditemukan.</Notice></main>} /></Routes></Shell>; }
